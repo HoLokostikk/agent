@@ -34,6 +34,19 @@ Every model call reports tokens, cost, latency and TTFT; every run reports its
 stop reason, turns, tool calls and invalid tool calls. Hosted models read their
 API key from `.env` (see `.env.example`).
 
+## Evals
+
+    agent eval toolcalls -m local-small        # 30 single-step tool-call cases
+    agent eval tasks -m local-small -k 3       # golden set, 3 runs per task
+    agent eval compare BASE.json CAND.json     # regression gate
+
+Golden tasks live in `evals/tasks/<id>/` (`repo/` the agent sees, `hidden/`
+extra tests, `solution/` the reference fix). Every task is checked to fail as
+shipped and pass with its solution. Before grading, the tests are restored from
+the snapshot, so editing them never counts as a fix. Reports give pass@1 and
+pass^k with 95% bootstrap intervals over tasks; results land in
+`evals/results/` as JSON plus a markdown report.
+
 ## License
 
 Apache-2.0, see [LICENSE](LICENSE).

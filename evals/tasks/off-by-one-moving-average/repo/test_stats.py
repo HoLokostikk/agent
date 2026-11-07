@@ -1,4 +1,5 @@
 import pytest
+
 from stats import mean, moving_average
 
 
@@ -15,5 +16,5 @@ def test_moving_average_full_window() -> None:
 
 
 def test_moving_average_rejects_bad_window() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="positive"):
         moving_average([1], 0)

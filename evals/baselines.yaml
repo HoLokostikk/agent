@@ -1,0 +1,14 @@
+# Results files the eval gate compares against, per model alias.
+# A baseline is only meaningful for the same model, revision and task set.
+#
+# max_drop: allowed pass@1 drop before the gate fails. Placeholder values:
+# they must be replaced by ~2x the run-to-run spread measured by repeating
+# the baseline (see EXPERIMENTS.md, phase 3). With 12 tasks one task is 8.3
+# percentage points, so anything tighter than that is noise by construction.
+max_drop:
+  toolcalls: 0.10
+  tasks: 0.17
+
+local-small: {}        # filled in after the first baseline run
+
+qwen27b-hosted: {}     # needs OPENROUTER_API_KEY; the CI gate skips until set

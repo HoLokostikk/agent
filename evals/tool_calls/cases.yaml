@@ -1,0 +1,171 @@
+# Single-step tool-call cases: the first tool call must match one expectation.
+# Prompts name files explicitly so that "list the directory first" is not the
+# only reasonable answer; where exploring first is reasonable, it is accepted.
+
+- id: read-named-file
+  prompt: Show me the contents of src/app/config.py.
+  expect: {tool: read_file, args: {path: {endswith: src/app/config.py}}}
+  tags: [read]
+
+- id: read-readme
+  prompt: What does README.md say?
+  expect: {tool: read_file, args: {path: {endswith: README.md}}}
+  tags: [read]
+
+- id: read-with-offset
+  prompt: Read utils.py starting from line 200.
+  expect: {tool: read_file, args: {path: {endswith: utils.py}, offset: 200}}
+  tags: [read, args]
+
+- id: read-first-lines
+  prompt: Show only the first 20 lines of main.py.
+  expect: {tool: read_file, args: {path: {endswith: main.py}, limit: 20}}
+  tags: [read, args]
+
+- id: list-root
+  prompt: Which files are in the repository root?
+  expect: {tool: list_dir, args: {path: {any_of: [".", "", "/workspace", "./"]}}}
+  tags: [list]
+
+- id: list-subdir
+  prompt: What is inside the tests directory?
+  expect:
+    - {tool: list_dir, args: {path: {regex: "tests/?$"}}}
+    - {tool: glob, args: {pattern: {contains: tests}}}
+  tags: [list]
+
+- id: glob-python-files
+  prompt: Find every Python file in the project.
+  expect: {tool: glob, args: {pattern: {regex: "\\*\\.py$"}}}
+  tags: [glob]
+
+- id: glob-test-files
+  prompt: Find all test files named test_*.py anywhere in the repo.
+  expect:
+    - {tool: glob, args: {pattern: {contains: test_}}}
+  tags: [glob]
+
+- id: glob-yaml
+  prompt: Locate all YAML config files (*.yaml) in the repository.
+  expect:
+    - {tool: glob, args: {pattern: {contains: .yaml}}}
+    - {tool: glob, args: {pattern: {contains: .yml}}}
+  tags: [glob]
+
+- id: grep-function-definition
+  prompt: Where is the function parse_config defined?
+  expect:
+    - {tool: grep, args: {pattern: {contains: parse_config}}}
+  tags: [grep]
+
+- id: grep-todo
+  prompt: Find all TODO comments in the code.
+  expect: {tool: grep, args: {pattern: {contains: TODO}}}
+  tags: [grep]
+
+- id: grep-in-python-only
+  prompt: Search only Python files for the string "import requests".
+  expect:
+    - {tool: grep, args: {pattern: {contains: requests}, include: {contains: .py}}}
+    - {tool: grep, args: {pattern: {contains: requests}, path: {any_of: [".", ""]}}}
+  tags: [grep, args]
+
+- id: grep-case-insensitive
+  prompt: Search case-insensitively for the word "deprecated" across the codebase.
+  expect: {tool: grep, args: {pattern: {regex: "(?i)deprecated"}, ignore_case: true}}
+  tags: [grep, args]
+
+- id: grep-class-usage
+  prompt: Which files use the class UserRepository?
+  expect: {tool: grep, args: {pattern: {contains: UserRepository}}}
+  tags: [grep]
+
+- id: run-tests
+  prompt: Run the test suite.
+  expect: {tool: bash, args: {command: {regex: "pytest"}}}
+  tags: [bash]
+
+- id: run-single-test-file
+  prompt: Run only the tests in tests/test_api.py.
+  expect: {tool: bash, args: {command: {regex: "pytest.*tests/test_api\\.py"}}}
+  tags: [bash, args]
+
+- id: run-python-version
+  prompt: Which Python version is installed in the sandbox?
+  expect: {tool: bash, args: {command: {regex: "python3? (--version|-V)"}}}
+  tags: [bash]
+
+- id: git-status
+  prompt: Show me the git status of the working tree.
+  expect: {tool: bash, args: {command: {contains: git status}}}
+  tags: [bash]
+
+- id: run-with-timeout
+  prompt: Run ./slow_script.sh but give it at most 300 seconds.
+  expect: {tool: bash, args: {command: {contains: slow_script.sh}, timeout_s: 300}}
+  tags: [bash, args]
+
+- id: count-lines
+  prompt: Count the lines in data.csv using a shell command.
+  expect: {tool: bash, args: {command: {regex: "wc .*data\\.csv|data\\.csv.*wc"}}}
+  tags: [bash]
+
+- id: write-new-file
+  prompt: 'Create a file hello.py containing exactly: print("hello")'
+  expect: {tool: write_file, args: {path: {endswith: hello.py}, content: {contains: 'print("hello")'}}}
+  tags: [write]
+
+- id: write-gitignore
+  prompt: Create a .gitignore file that ignores __pycache__/ directories.
+  expect: {tool: write_file, args: {path: {endswith: .gitignore}, content: {contains: __pycache__}}}
+  tags: [write]
+
+- id: write-nested-file
+  prompt: Create docs/notes.md with the single line "# Notes".
+  expect: {tool: write_file, args: {path: {endswith: docs/notes.md}, content: {contains: "# Notes"}}}
+  tags: [write]
+
+- id: edit-rename-variable
+  prompt: In app.py, replace the line "DEBUG = True" with "DEBUG = False".
+  expect:
+    - {tool: edit_file, args: {path: {endswith: app.py}, old_string: {contains: DEBUG = True}, new_string: {contains: DEBUG = False}}}
+    - {tool: read_file, args: {path: {endswith: app.py}}}
+  tags: [edit]
+
+- id: edit-fix-typo
+  prompt: In README.md the word "recieve" is misspelled. Fix it to "receive".
+  expect:
+    - {tool: edit_file, args: {path: {endswith: README.md}, old_string: {contains: recieve}, new_string: {contains: receive}}}
+    - {tool: read_file, args: {path: {endswith: README.md}}}
+    - {tool: grep, args: {pattern: {contains: recieve}}}
+  tags: [edit]
+
+- id: edit-change-constant
+  prompt: Change MAX_RETRIES from 3 to 5 in settings.py. The line is "MAX_RETRIES = 3".
+  expect:
+    - {tool: edit_file, args: {path: {endswith: settings.py}, old_string: {contains: MAX_RETRIES = 3}, new_string: {contains: MAX_RETRIES = 5}}}
+    - {tool: read_file, args: {path: {endswith: settings.py}}}
+  tags: [edit]
+
+- id: read-before-fix
+  prompt: There is a bug in parser.py. Take a look at the file.
+  expect: {tool: read_file, args: {path: {endswith: parser.py}}}
+  tags: [read]
+
+- id: explore-unknown-repo
+  prompt: I just cloned this repository. Help me understand its structure.
+  expect:
+    - {tool: list_dir}
+    - {tool: glob}
+  tags: [list]
+
+- id: find-entrypoint
+  prompt: Find where the main() entry point is defined.
+  expect:
+    - {tool: grep, args: {pattern: {contains: main}}}
+  tags: [grep]
+
+- id: run-linter
+  prompt: Run ruff check on the project.
+  expect: {tool: bash, args: {command: {contains: ruff check}}}
+  tags: [bash]

@@ -46,6 +46,7 @@ thing being learned here, and it is the main interview topic.
     make fmt      format and autofix
     make check    lint + mypy + tests  (must be green before every commit)
     make test     tests only
+    make eval     golden set + tool-call eval on local-small (slow)
 
 ## Layout
 
@@ -59,7 +60,8 @@ thing being learned here, and it is the main interview topic.
       rag/          indexer, chunker, retrievers, reranker
       mcp/          client + code-search server
       telemetry/    OTel setup, redaction
-    evals/          tasks, tool_calls, retrieval, injection, judge, results
+      evals/        runner, statistics, tool-call eval, reports, gate
+    evals/          data: tasks, tool_calls, baselines.yaml, results
     training/       data generation and fine-tuning
     serving/        vLLM, LiteLLM
 

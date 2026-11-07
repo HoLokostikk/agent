@@ -41,7 +41,7 @@ line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
 # Task repositories are fixtures with deliberate bugs, not project code.
-extend-exclude = ["evals/tasks/*/repo"]
+extend-exclude = ["evals/tasks/*/repo", "evals/tasks/*/hidden", "evals/tasks/*/solution"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "SIM", "N", "S", "PT", "ASYNC", "RUF"]

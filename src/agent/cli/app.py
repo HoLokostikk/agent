@@ -471,6 +471,177 @@ def build_sandbox() -> None:
     out.print("sandbox image built")
 
 
+# --- evals -----------------------------------------------------------------------
+
+eval_app = typer.Typer(no_args_is_help=True, help="Run evals and compare results.")
+app.add_typer(eval_app, name="eval")
+
+DEFAULT_TASKS = Path("evals/tasks")
+DEFAULT_CASES = Path("evals/tool_calls/cases.yaml")
+DEFAULT_RESULTS = Path("evals/results")
+
+
+def _write_results(
+    payload: dict[str, Any], out_dir: Path, kind: str, alias: str, version: str
+) -> Path:
+    from agent.evals.report import render
+    from agent.evals.runner import results_path
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = results_path(out_dir, kind, alias, version)
+    path.write_text(json.dumps(payload, indent=1, default=str) + "\n", encoding="utf-8")
+    path.with_suffix(".md").write_text(render(path), encoding="utf-8")
+    return path
+
+
+@eval_app.command("tasks")
+def eval_tasks(
+    model: ModelOpt = "local-small",
+    k: Annotated[int, typer.Option("-k", min=1, help="Runs per task.")] = 3,
+    concurrency: Annotated[int, typer.Option(min=1)] = 1,
+    tag: Annotated[list[str] | None, typer.Option(help="Only tasks with this tag.")] = None,
+    task: Annotated[list[str] | None, typer.Option(help="Only this task id.")] = None,
+    tasks_dir: Annotated[Path, typer.Option()] = DEFAULT_TASKS,
+    out_dir: Annotated[Path, typer.Option("--out")] = DEFAULT_RESULTS,
+    max_cost: Annotated[float, typer.Option(min=0, help="Per run, USD.")] = 1.0,
+    max_time: Annotated[float, typer.Option(min=1, help="Per run, seconds.")] = 900.0,
+    config: ConfigOpt = DEFAULT_CONFIG,
+    rules: Annotated[Path, typer.Option()] = DEFAULT_RULES,
+    system_prompt: Annotated[Path, typer.Option()] = DEFAULT_PROMPT,
+) -> None:
+    """Run the agent on golden tasks, k times each, and write a results file."""
+    from agent.evals.runner import SuiteConfig, results_payload, run_suite, summarize
+    from agent.evals.tasks import TaskError, load_tasks
+
+    try:
+        model_config = get_model(config, model)
+        tasks = load_tasks(tasks_dir, tags=tag, ids=task)
+        version, prompt_text = load_prompt(system_prompt)
+        policy_rules = load_rules(rules)
+    except (ConfigError, TaskError, PolicyError, FileNotFoundError) as exc:
+        err.print(f"[red]config error:[/red] {exc}")
+        raise typer.Exit(EXIT_USAGE) from None
+    if not tasks:
+        err.print("[red]no tasks selected[/red]")
+        raise typer.Exit(EXIT_USAGE)
+
+    async def go() -> Path:
+        client = make_client(model_config)
+        if not await image_exists():
+            err.print("[dim]building sandbox image...[/dim]")
+            await build_image()
+        try:
+            cfg = SuiteConfig(
+                model=client,
+                rules=policy_rules,
+                system_prompt=prompt_text,
+                prompt_version=version,
+                k=k,
+                concurrency=concurrency,
+                budget=Budget(max_cost_usd=max_cost, max_wall_s=max_time),
+            )
+            records = await run_suite(
+                tasks,
+                cfg,
+                progress=lambda r: err.print(
+                    f"[dim]{r.task_id} #{r.attempt}: "
+                    f"{'[green]pass[/green]' if r.passed else '[red]fail[/red]'} "
+                    f"({r.stop_reason}, {r.stats.get('turns', 0)} turns, {r.wall_s:.0f}s)"
+                    f"{' [yellow]tests edited[/yellow]' if r.tampered else ''}"
+                    f"{' [red]' + r.error + '[/red]' if r.error else ''}[/dim]"
+                ),
+            )
+            summary = summarize(records, k)
+            payload = results_payload(
+                "tasks",
+                client,
+                version,
+                summary,
+                [asdict(r) for r in records],
+                {"tasks_dir": str(tasks_dir), "budget": asdict(cfg.budget)},
+            )
+            return _write_results(payload, out_dir, "tasks", model_config.alias, version)
+        finally:
+            await client.aclose()
+
+    path = asyncio.run(go())
+    out.print(path.with_suffix(".md").read_text(encoding="utf-8"), markup=False)
+    err.print(f"[dim]results: {path}[/dim]")
+
+
+@eval_app.command("toolcalls")
+def eval_toolcalls(
+    model: ModelOpt = "local-small",
+    k: Annotated[int, typer.Option("-k", min=1, help="Runs per case.")] = 1,
+    concurrency: Annotated[int, typer.Option(min=1)] = 1,
+    cases: Annotated[Path, typer.Option()] = DEFAULT_CASES,
+    out_dir: Annotated[Path, typer.Option("--out")] = DEFAULT_RESULTS,
+    config: ConfigOpt = DEFAULT_CONFIG,
+    system_prompt: Annotated[Path, typer.Option()] = DEFAULT_PROMPT,
+) -> None:
+    """Single-step tool-call eval: does the model pick the right tool and arguments?"""
+    from agent.evals.runner import results_payload
+    from agent.evals.toolcalls import CaseError, load_cases, run_cases, summarize_cases
+
+    try:
+        model_config = get_model(config, model)
+        case_list = load_cases(cases)
+        version, prompt_text = load_prompt(system_prompt)
+    except (ConfigError, CaseError, FileNotFoundError) as exc:
+        err.print(f"[red]config error:[/red] {exc}")
+        raise typer.Exit(EXIT_USAGE) from None
+
+    async def go() -> Path:
+        client = make_client(model_config)
+        try:
+            results = await run_cases(
+                case_list,
+                client,
+                default_tools(),
+                prompt_text,
+                k=k,
+                concurrency=concurrency,
+                progress=lambda r: err.print(f"[dim]{r.case_id} #{r.attempt}: {r.outcome}[/dim]"),
+            )
+            payload = results_payload(
+                "toolcalls",
+                client,
+                version,
+                summarize_cases(results),
+                [asdict(r) for r in results],
+                {"cases_file": str(cases)},
+            )
+            return _write_results(payload, out_dir, "toolcalls", model_config.alias, version)
+        finally:
+            await client.aclose()
+
+    path = asyncio.run(go())
+    out.print(path.with_suffix(".md").read_text(encoding="utf-8"), markup=False)
+    err.print(f"[dim]results: {path}[/dim]")
+
+
+@eval_app.command("report")
+def eval_report(results: Path) -> None:
+    """Print the markdown report for a results file."""
+    from agent.evals.report import render
+
+    out.print(render(results), markup=False)
+
+
+@eval_app.command("compare")
+def eval_compare(
+    baseline: Path,
+    candidate: Path,
+    max_drop: Annotated[float, typer.Option(min=0, max=1, help="Allowed pass@1 drop.")] = 0.10,
+) -> None:
+    """Regression gate: exit 1 if candidate pass@1 drops more than --max-drop."""
+    from agent.evals.report import gate, load_results
+
+    result = gate(load_results(baseline), load_results(candidate), max_drop=max_drop)
+    out.print(result.message)
+    raise typer.Exit(0 if result.passed else 1)
+
+
 def main() -> None:
     load_dotenv()
     app()

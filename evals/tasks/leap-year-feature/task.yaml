@@ -1,0 +1,7 @@
+id: leap-year-feature
+instruction: >-
+  Implement is_leap_year in calendar_utils.py using the Gregorian rules. Do not change the tests. Run the tests with: python -m pytest -q
+test_command: python -m pytest -q
+tags: [python, feature]
+difficulty: easy
+max_turns: 20

@@ -1,0 +1,360 @@
+{
+ "schema_version": 1,
+ "kind": "toolcalls",
+ "created": "2026-11-07T19:13:59+00:00",
+ "git": "d6669df-dirty",
+ "model": {
+  "alias": "local-small",
+  "model": "qwen2.5-3b-instruct-8k",
+  "revision": "sha256:155251c4b20a9a96f844f6ed01e45338b06fe4ad5c456660b58eee40d7dd7cea",
+  "sampling": {
+   "temperature": 0.7,
+   "top_p": 0.8,
+   "top_k": 20
+  }
+ },
+ "prompt_version": "system.v1",
+ "cases_file": "evals/tool_calls/cases.yaml",
+ "summary": {
+  "cases": 30,
+  "runs": 30,
+  "accuracy": {
+   "estimate": 0.6666666666666666,
+   "low": 0.5,
+   "high": 0.8333333333333334,
+   "confidence": 0.95
+  },
+  "outcomes": {
+   "correct": 20,
+   "no_call": 2,
+   "wrong_args": 5,
+   "wrong_tool": 3
+  },
+  "invalid_json_rate": 0.0,
+  "no_call_rate": 0.06666666666666667,
+  "failures": [
+   {
+    "case_id": "find-entrypoint",
+    "attempt": 1,
+    "outcome": "wrong_tool",
+    "tool": "read_file",
+    "arguments": "{\"path\":\"main.py\"}",
+    "detail": "expected grep"
+   },
+   {
+    "case_id": "glob-python-files",
+    "attempt": 1,
+    "outcome": "wrong_tool",
+    "tool": "list_dir",
+    "arguments": "{\"path\":\"*/\"}",
+    "detail": "expected glob"
+   },
+   {
+    "case_id": "grep-function-definition",
+    "attempt": 1,
+    "outcome": "no_call",
+    "tool": null,
+    "arguments": null,
+    "detail": "I cannot find any mention of a function named `parse_config` in the available tools or functions. Could you please provide more context or information about where you heard of this function? I will th"
+   },
+   {
+    "case_id": "list-root",
+    "attempt": 1,
+    "outcome": "wrong_args",
+    "tool": "list_dir",
+    "arguments": "{}",
+    "detail": "mismatched: path"
+   },
+   {
+    "case_id": "read-readme",
+    "attempt": 1,
+    "outcome": "no_call",
+    "tool": null,
+    "arguments": null,
+    "detail": ""
+   },
+   {
+    "case_id": "run-linter",
+    "attempt": 1,
+    "outcome": "wrong_args",
+    "tool": "bash",
+    "arguments": "{\"command\":\"ruff .\"}",
+    "detail": "mismatched: command"
+   },
+   {
+    "case_id": "run-python-version",
+    "attempt": 1,
+    "outcome": "wrong_tool",
+    "tool": "read_file",
+    "arguments": "{\"path\":\"python_version.py\"}",
+    "detail": "expected bash"
+   },
+   {
+    "case_id": "run-single-test-file",
+    "attempt": 1,
+    "outcome": "wrong_args",
+    "tool": "bash",
+    "arguments": "{\"command\":\"bash tests/test_api.py\"}",
+    "detail": "mismatched: command"
+   },
+   {
+    "case_id": "run-tests",
+    "attempt": 1,
+    "outcome": "wrong_args",
+    "tool": "bash",
+    "arguments": "{\"command\":\"make test\"}",
+    "detail": "mismatched: command"
+   },
+   {
+    "case_id": "write-new-file",
+    "attempt": 1,
+    "outcome": "wrong_args",
+    "tool": "write_file",
+    "arguments": "{\"content\":\"print('hello')\",\"path\":\"hello.py\"}",
+    "detail": "mismatched: content"
+   }
+  ]
+ },
+ "runs": [
+  {
+   "case_id": "count-lines",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "bash",
+   "arguments": "{\"command\":\"wc -l data.csv\",\"timeout_s\":2}",
+   "detail": ""
+  },
+  {
+   "case_id": "edit-change-constant",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "read_file",
+   "arguments": "{\"path\":\"settings.py\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "edit-fix-typo",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "read_file",
+   "arguments": "{\"path\":\"README.md\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "edit-rename-variable",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "read_file",
+   "arguments": "{\"path\":\"app.py\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "explore-unknown-repo",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "list_dir",
+   "arguments": "{}",
+   "detail": ""
+  },
+  {
+   "case_id": "find-entrypoint",
+   "attempt": 1,
+   "outcome": "wrong_tool",
+   "tool": "read_file",
+   "arguments": "{\"path\":\"main.py\"}",
+   "detail": "expected grep"
+  },
+  {
+   "case_id": "git-status",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "bash",
+   "arguments": "{\"command\":\"git status --short\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "glob-python-files",
+   "attempt": 1,
+   "outcome": "wrong_tool",
+   "tool": "list_dir",
+   "arguments": "{\"path\":\"*/\"}",
+   "detail": "expected glob"
+  },
+  {
+   "case_id": "glob-test-files",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "glob",
+   "arguments": "{\"pattern\":\"**/test_*.py\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "glob-yaml",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "glob",
+   "arguments": "{\"path\":\"\",\"pattern\":\"**/*.yaml\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "grep-case-insensitive",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "grep",
+   "arguments": "{\"pattern\":\"deprecated\",\"ignore_case\":true}",
+   "detail": ""
+  },
+  {
+   "case_id": "grep-class-usage",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "grep",
+   "arguments": "{\"pattern\":\"class UserRepository\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "grep-function-definition",
+   "attempt": 1,
+   "outcome": "no_call",
+   "tool": null,
+   "arguments": null,
+   "detail": "I cannot find any mention of a function named `parse_config` in the available tools or functions. Could you please provide more context or information about where you heard of this function? I will th"
+  },
+  {
+   "case_id": "grep-in-python-only",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "grep",
+   "arguments": "{\"pattern\":\"import requests\",\"include\":\"*.py\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "grep-todo",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "grep",
+   "arguments": "{\"pattern\":\"/#\\\\s*TODO:/\",\"include\":\"*.py\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "list-root",
+   "attempt": 1,
+   "outcome": "wrong_args",
+   "tool": "list_dir",
+   "arguments": "{}",
+   "detail": "mismatched: path"
+  },
+  {
+   "case_id": "list-subdir",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "list_dir",
+   "arguments": "{\"path\":\"tests\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "read-before-fix",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "read_file",
+   "arguments": "{\"path\":\"parser.py\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "read-first-lines",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "read_file",
+   "arguments": "{\"limit\":20,\"path\":\"main.py\",\"offset\":0}",
+   "detail": ""
+  },
+  {
+   "case_id": "read-named-file",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "read_file",
+   "arguments": "{\"path\":\"src/app/config.py\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "read-readme",
+   "attempt": 1,
+   "outcome": "no_call",
+   "tool": null,
+   "arguments": null,
+   "detail": ""
+  },
+  {
+   "case_id": "read-with-offset",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "read_file",
+   "arguments": "{\"path\":\"utils.py\",\"offset\":200}",
+   "detail": ""
+  },
+  {
+   "case_id": "run-linter",
+   "attempt": 1,
+   "outcome": "wrong_args",
+   "tool": "bash",
+   "arguments": "{\"command\":\"ruff .\"}",
+   "detail": "mismatched: command"
+  },
+  {
+   "case_id": "run-python-version",
+   "attempt": 1,
+   "outcome": "wrong_tool",
+   "tool": "read_file",
+   "arguments": "{\"path\":\"python_version.py\"}",
+   "detail": "expected bash"
+  },
+  {
+   "case_id": "run-single-test-file",
+   "attempt": 1,
+   "outcome": "wrong_args",
+   "tool": "bash",
+   "arguments": "{\"command\":\"bash tests/test_api.py\"}",
+   "detail": "mismatched: command"
+  },
+  {
+   "case_id": "run-tests",
+   "attempt": 1,
+   "outcome": "wrong_args",
+   "tool": "bash",
+   "arguments": "{\"command\":\"make test\"}",
+   "detail": "mismatched: command"
+  },
+  {
+   "case_id": "run-with-timeout",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "bash",
+   "arguments": "{\"command\":\"./slow_script.sh\",\"timeout_s\":300}",
+   "detail": ""
+  },
+  {
+   "case_id": "write-gitignore",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "write_file",
+   "arguments": "{\"content\":\"*.pyc __pycache__/*\",\"path\":\".gitignore\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "write-nested-file",
+   "attempt": 1,
+   "outcome": "correct",
+   "tool": "write_file",
+   "arguments": "{\"content\":\"# Notes\",\"path\":\"docs/notes.md\"}",
+   "detail": ""
+  },
+  {
+   "case_id": "write-new-file",
+   "attempt": 1,
+   "outcome": "wrong_args",
+   "tool": "write_file",
+   "arguments": "{\"content\":\"print('hello')\",\"path\":\"hello.py\"}",
+   "detail": "mismatched: content"
+  }
+ ]
+}

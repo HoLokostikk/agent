@@ -1,0 +1,7 @@
+id: parse-duration-units
+instruction: >-
+  The test suite fails. Find the bug in the code and fix it. Do not change the tests. Run the tests with: python -m pytest -q
+test_command: python -m pytest -q
+tags: [python, bugfix, parsing]
+difficulty: easy
+max_turns: 20
