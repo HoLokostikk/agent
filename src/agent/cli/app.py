@@ -33,6 +33,7 @@ from agent.llm import (
 )
 from agent.llm.config import load_models
 from agent.permissions import Mode, PolicyError, load_rules
+from agent.rag.search import Searcher
 from agent.sandbox import DockerSandbox, Sandbox, SandboxError, build_image, image_exists
 from agent.telemetry import DEFAULT_TRACE_FILE, Exporter, configure
 from agent.tools import Tool, default_tools
@@ -248,8 +249,11 @@ async def _agent_session(
     compaction: bool = True,
     resume: str | None = None,
     sessions: SessionStore | None = None,
+    rag: bool = False,
+    embed_config: ModelConfig | None = None,
 ) -> int:
     prompt_version, system_prompt = load_prompt(prompt_path)
+    searcher = await _build_searcher(root, embed_config) if rag else None
     spec = AgentSpec(
         base_prompt=system_prompt,
         prompt_version=prompt_version,
@@ -257,6 +261,7 @@ async def _agent_session(
         mode=mode,
         budget=budget,
         compaction=compaction,
+        searcher=searcher,
     )
     client = make_client(model)
     compact_client = make_client(compact_model) if compact_model is not None else None
@@ -392,6 +397,10 @@ def main_callback(
     resume: Annotated[
         str | None, typer.Option(help="Continue a saved session: its id, or 'last'.")
     ] = None,
+    rag: Annotated[bool, typer.Option(help="Index the workspace and add search_code.")] = False,
+    embed_model: Annotated[
+        str | None, typer.Option(help="Embedding model alias for --rag (default: BM25 only).")
+    ] = None,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Log every model call.")] = False,
     trace: Annotated[
         Exporter, typer.Option(envvar="AGENT_TRACE", help="Where spans go (otlp: Phoenix etc.).")
@@ -419,6 +428,7 @@ def main_callback(
     try:
         model_config = get_model(config, model)
         compact_config = get_model(config, compact_model) if compact_model else None
+        embed_config = get_model(config, embed_model) if embed_model else None
         code = asyncio.run(
             _agent_session(
                 model=model_config,
@@ -434,6 +444,8 @@ def main_callback(
                 compact_model=compact_config,
                 compaction=compaction,
                 resume=resume,
+                rag=rag,
+                embed_config=embed_config,
             )
         )
     except (ConfigError, PolicyError, FileNotFoundError) as exc:
@@ -550,6 +562,47 @@ def sessions_cmd(limit: int = 20) -> None:
     for info in SessionStore().list(limit):
         table.add_row(info.id, info.model, str(info.messages), info.workspace)
     out.print(table)
+
+
+# --- retrieval -------------------------------------------------------------------
+
+
+async def _build_searcher(root: Path, embed_config: ModelConfig | None) -> Searcher:
+    from agent.rag.embed import OpenAIEmbedder
+    from agent.rag.index import CodeIndex
+    from agent.rag.search import Searcher
+
+    embedder = OpenAIEmbedder(embed_config) if embed_config else None
+    index = CodeIndex(root)
+    try:
+        stats = await index.update(embedder)
+        chunks, vectors = index.vectors()
+    finally:
+        index.close()
+    err.print(
+        f"[dim]index: {stats.chunks_total} chunks, {stats.files_changed} files updated, "
+        f"{stats.files_deleted} removed ({'hybrid' if vectors is not None else 'bm25 only'})[/dim]"
+    )
+    return Searcher(chunks, vectors, embedder)
+
+
+@app.command("index")
+def index_cmd(
+    workspace: Annotated[Path, typer.Option()] = Path(),
+    embed_model: Annotated[str | None, typer.Option()] = None,
+    config: ConfigOpt = DEFAULT_CONFIG,
+    query: Annotated[str | None, typer.Option(help="Run one search after indexing.")] = None,
+) -> None:
+    """Build or refresh the code index of a workspace (incremental)."""
+    embed_config = get_model(config, embed_model) if embed_model else None
+
+    async def go() -> None:
+        searcher = await _build_searcher(workspace.resolve(), embed_config)
+        if query:
+            for hit in await searcher.search(query, 5):
+                out.print(hit.chunk.header(), markup=False)
+
+    asyncio.run(go())
 
 
 # --- traces ----------------------------------------------------------------------
@@ -769,6 +822,65 @@ def eval_toolcalls(
     path = asyncio.run(go())
     out.print(path.with_suffix(".md").read_text(encoding="utf-8"), markup=False)
     err.print(f"[dim]results: {path}[/dim]")
+
+
+@eval_app.command("retrieval")
+def eval_retrieval(
+    repo: Annotated[Path, typer.Option(help="A git repository to build queries from.")],
+    embed_model: Annotated[str | None, typer.Option()] = None,
+    max_commits: Annotated[int, typer.Option(min=1)] = 300,
+    rerank: Annotated[bool, typer.Option(help="Cross-encoder rerank (needs torch).")] = False,
+    out_dir: Annotated[Path, typer.Option("--out")] = DEFAULT_RESULTS,
+    config: ConfigOpt = DEFAULT_CONFIG,
+) -> None:
+    """Retrieval ablation on git history: BM25 / vector / hybrid / hybrid+rerank."""
+    import datetime as dt
+
+    from agent.evals.retrieval import cases_from_git, evaluate, render_retrieval
+    from agent.evals.runner import git_revision
+    from agent.rag.embed import OpenAIEmbedder
+    from agent.rag.index import CodeIndex
+    from agent.rag.search import CrossEncoderReranker, Searcher
+
+    embed_config = get_model(config, embed_model) if embed_model else None
+    root = repo.resolve()
+    cases = cases_from_git(root, max_commits)
+    if not cases:
+        err.print("[red]no usable commits (need commits that change 1-5 .py files)[/red]")
+        raise typer.Exit(EXIT_USAGE)
+    git = git_revision(Path.cwd())
+
+    async def go() -> dict[str, Any]:
+        embedder = OpenAIEmbedder(embed_config) if embed_config else None
+        index = CodeIndex(root, root.parent / f".{root.name}-eval-index.sqlite")
+        try:
+            stats = await index.update(embedder)
+            chunks, vectors = index.vectors()
+        finally:
+            index.close()
+        searcher = Searcher(chunks, vectors, embedder, CrossEncoderReranker() if rerank else None)
+        result = await evaluate(searcher, cases)
+        return {
+            "schema_version": 1,
+            "kind": "retrieval",
+            "created": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
+            "git": git,
+            "repo": root.name,
+            "repo_revision": git_revision(root),
+            "embedder": embedder.name if embedder else None,
+            "chunks": stats.chunks_total,
+            "files": stats.files_seen,
+            **result,
+        }
+
+    payload = asyncio.run(go())
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H%M")
+    path = out_dir / f"{stamp}_retrieval_{root.name}.json"
+    path.write_text(json.dumps(payload, indent=1, default=str) + "\n", encoding="utf-8")
+    report = render_retrieval(payload, path.name)
+    path.with_suffix(".md").write_text(report, encoding="utf-8")
+    out.print(report, markup=False)
 
 
 @eval_app.command("report")

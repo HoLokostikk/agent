@@ -133,6 +133,10 @@ def render(path: Path) -> str:
         return render_tasks(data, path.name)
     if data["kind"] == "toolcalls":
         return render_toolcalls(data, path.name)
+    if data["kind"] == "retrieval":
+        from agent.evals.retrieval import render_retrieval
+
+        return render_retrieval(data, path.name)
     raise ValueError(f"unknown results kind {data['kind']!r}")
 
 

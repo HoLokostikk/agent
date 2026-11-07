@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -54,6 +54,7 @@ class RetryPolicy(_Strict):
 
 class ModelConfig(_Strict):
     alias: str
+    kind: Literal["chat", "embedding"] = "chat"
     base_url: str
     model: str
     revision: str = Field(min_length=1)

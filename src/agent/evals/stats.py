@@ -126,3 +126,21 @@ def paired_bootstrap_diff(
         high=_percentile(diffs, 1 - alpha),
         confidence=confidence,
     )
+
+
+def bootstrap_mean(
+    values: Sequence[float], *, confidence: float = 0.95, resamples: int = 10_000, seed: int = 0
+) -> Interval:
+    """Percentile bootstrap CI of a mean of per-case scores (e.g. recall@10)."""
+    if not values:
+        raise ValueError("no values")
+    rng = random.Random(seed)  # noqa: S311  (resampling, not crypto)
+    n = len(values)
+    means = sorted(sum(values[rng.randrange(n)] for _ in range(n)) / n for _ in range(resamples))
+    alpha = (1 - confidence) / 2
+    return Interval(
+        estimate=sum(values) / n,
+        low=_percentile(means, alpha),
+        high=_percentile(means, 1 - alpha),
+        confidence=confidence,
+    )

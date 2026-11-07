@@ -50,10 +50,11 @@ extend-exclude = ["evals/tasks/*/repo", "evals/tasks/*/hidden", "evals/tasks/*/s
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "SIM", "N", "S", "PT", "ASYNC", "RUF"]
 # Ukrainian text in docs and comments would trip the ambiguous-character rules.
-ignore = ["RUF001", "RUF002", "RUF003"]
+# S607: git and docker are resolved from PATH on purpose.
+ignore = ["RUF001", "RUF002", "RUF003", "S607"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S311"]
+"tests/**" = ["S101", "S311", "S603"]
 
 [tool.mypy]
 python_version = "3.12"

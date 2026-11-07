@@ -228,14 +228,14 @@ def summarize(records: Sequence[RunRecord], k: int) -> dict[str, Any]:
 def git_revision(repo: Path) -> str:
     try:
         sha = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
+            ["git", "rev-parse", "--short", "HEAD"],
             cwd=repo,
             capture_output=True,
             text=True,
             check=True,
         ).stdout.strip()
         dirty = subprocess.run(
-            ["git", "status", "--porcelain"],  # noqa: S607
+            ["git", "status", "--porcelain"],
             cwd=repo,
             capture_output=True,
             text=True,

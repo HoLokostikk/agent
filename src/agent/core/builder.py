@@ -16,6 +16,8 @@ from agent.core.loop import Agent, AgentEvents, Budget, ChatModel
 from agent.core.session import build_system_prompt
 from agent.core.subagent import Explore
 from agent.permissions import Approver, Mode, PermissionPolicy, Rules
+from agent.rag.search import Searcher
+from agent.rag.tool import SearchCode
 from agent.sandbox import Sandbox
 from agent.tools import PathGuard, Tool, ToolContext, ToolRegistry, default_tools
 from agent.tools.todo import TodoWrite
@@ -33,6 +35,7 @@ class AgentSpec:
     budget: Budget
     compaction: bool = True
     extended_tools: bool | None = None  # None: decide by the context window
+    searcher: Searcher | None = None  # adds search_code when set
 
 
 def build_tools(model: ChatModel, spec: AgentSpec, compact_model: ChatModel | None) -> ToolRegistry:
@@ -43,6 +46,8 @@ def build_tools(model: ChatModel, spec: AgentSpec, compact_model: ChatModel | No
     if extended:
         tools.append(TodoWrite())
         tools.append(Explore(compact_model or model, spec.rules))
+    if spec.searcher is not None:
+        tools.append(SearchCode(spec.searcher))
     return ToolRegistry(tools)
 
 

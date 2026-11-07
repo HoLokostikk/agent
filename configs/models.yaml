@@ -40,3 +40,11 @@ models:
     # Thinking-mode recommendation (thinking is on by default for this model).
     sampling: {temperature: 1.0, top_p: 0.95, top_k: 20}
     timeouts: {connect_s: 10.0, read_s: 120.0, total_s: 600.0}
+
+  local-embed:
+    kind: embedding
+    base_url: http://localhost:11434/v1
+    model: nomic-embed-text
+    revision: sha256:0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f
+    context_window: 2048
+    pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
