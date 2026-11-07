@@ -163,3 +163,17 @@ def test_missing_workspace_is_a_usage_error(tmp_path: Path) -> None:
     result = runner.invoke(cli.app, ["-p", "x", "--workspace", str(tmp_path / "nope")])
 
     assert result.exit_code == 2
+
+
+def test_eval_refuses_to_start_against_a_dead_endpoint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import httpx2
+
+    monkeypatch.setattr(cli, "make_client", fake_factory(Recorder(httpx2.ConnectError("refused"))))
+
+    result = runner.invoke(cli.app, ["eval", "toolcalls", "--out", str(tmp_path)])
+
+    assert result.exit_code == 4
+    assert "not usable" in result.output
+    assert list(tmp_path.iterdir()) == []

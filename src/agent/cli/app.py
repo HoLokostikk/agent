@@ -45,6 +45,7 @@ EXIT_OK = 0
 EXIT_NOT_COMPLETED = 1
 EXIT_USAGE = 2
 EXIT_SANDBOX = 3
+EXIT_MODEL_UNAVAILABLE = 4
 
 app = typer.Typer(add_completion=False)
 out = Console(highlight=False, soft_wrap=True)
@@ -608,6 +609,17 @@ DEFAULT_CASES = Path("evals/tool_calls/cases.yaml")
 DEFAULT_RESULTS = Path("evals/results")
 
 
+async def _preflight(client: LLMClient) -> None:
+    """One tiny call before a long eval, so a dead endpoint fails loudly instead
+    of producing a results file full of zeros."""
+    try:
+        await client.complete([{"role": "user", "content": "Reply with: ok"}], max_tokens=2)
+    except LLMError as exc:
+        await client.aclose()
+        err.print(f"[red]model endpoint is not usable, eval not started:[/red] {exc}")
+        raise typer.Exit(EXIT_MODEL_UNAVAILABLE) from None
+
+
 def _write_results(
     payload: dict[str, Any], out_dir: Path, kind: str, alias: str, version: str
 ) -> Path:
@@ -658,6 +670,7 @@ def eval_tasks(
 
     async def go() -> Path:
         client = make_client(model_config)
+        await _preflight(client)
         if not await image_exists():
             err.print("[dim]building sandbox image...[/dim]")
             await build_image()
@@ -729,6 +742,7 @@ def eval_toolcalls(
 
     async def go() -> Path:
         client = make_client(model_config)
+        await _preflight(client)
         try:
             results = await run_cases(
                 case_list,

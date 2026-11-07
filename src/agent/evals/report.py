@@ -38,10 +38,20 @@ def _header(data: dict[str, Any], source: str) -> list[str]:
     ]
 
 
+def _warning(errors: int, runs: int) -> list[str]:
+    if errors == 0:
+        return []
+    return [
+        f"> **Warning:** {errors} of {runs} runs ended in a model error. Those runs count as "
+        "failures above, so the pass rates understate the agent. Check the endpoint.",
+        "",
+    ]
+
+
 def render_tasks(data: dict[str, Any], source: str) -> str:
     s = data["summary"]
     k = s["k"]
-    lines = _header(data, source)
+    lines = _header(data, source) + _warning(s.get("model_errors", 0), s["runs"])
     lines += [
         f"{s['tasks']} tasks × {k} runs = {s['runs']} runs. Intervals: 95% percentile "
         "bootstrap over tasks.",
@@ -61,6 +71,7 @@ def render_tasks(data: dict[str, Any], source: str) -> str:
         + f" of {s['tool_calls']} calls |",
         f"| runs that edited tests | {s['tampered_runs']} |",
         f"| infrastructure errors | {s['infra_errors']} |",
+        f"| model errors | {s.get('model_errors', 0)} |",
         "",
         "Stop reasons: "
         + ", ".join(f"{reason} {n}" for reason, n in sorted(s["stop_reasons"].items())),
@@ -93,7 +104,7 @@ def render_tasks(data: dict[str, Any], source: str) -> str:
 
 def render_toolcalls(data: dict[str, Any], source: str) -> str:
     s = data["summary"]
-    lines = _header(data, source)
+    lines = _header(data, source) + _warning(s["outcomes"].get("model_error", 0), s["runs"])
     lines += [
         f"{s['cases']} cases, {s['runs']} runs.",
         "",

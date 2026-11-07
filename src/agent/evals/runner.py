@@ -216,6 +216,8 @@ def summarize(records: Sequence[RunRecord], k: int) -> dict[str, Any]:
         "stop_reasons": dict(Counter(r.stop_reason or "none" for r in records)),
         "tampered_runs": sum(bool(r.tampered) for r in records),
         "infra_errors": sum(r.error is not None for r in records),
+        # A run that never reached the model measures the endpoint, not the agent.
+        "model_errors": sum(r.stop_reason == "model_error" for r in records),
         "per_task": {
             task: {"passed": sum(runs), "runs": len(runs)}
             for task, runs in sorted(outcomes.items())
