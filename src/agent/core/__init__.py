@@ -1,5 +1,6 @@
-"""The agent loop."""
+"""The agent loop, context management, sessions and subagents."""
 
+from agent.core.context import Compactor, estimate_tokens
 from agent.core.loop import (
     Agent,
     AgentEvents,
@@ -18,10 +19,12 @@ __all__ = [
     "AgentEvents",
     "Budget",
     "ChatModel",
+    "Compactor",
     "RunResult",
     "RunStats",
     "StopReason",
     "ToolCallRecord",
     "TurnRecord",
+    "estimate_tokens",
     "load_prompt",
 ]

@@ -114,6 +114,9 @@ class ToolRegistry:
     def names(self) -> list[str]:
         return list(self._tools)
 
+    def tools(self) -> list[Tool]:
+        return list(self._tools.values())
+
     def schemas(self) -> list[ChatCompletionToolParam]:
         return [tool.schema() for tool in self._tools.values()]
 

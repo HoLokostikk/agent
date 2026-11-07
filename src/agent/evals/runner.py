@@ -19,7 +19,8 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from agent.core import Agent, Budget, ChatModel, RunResult
+from agent.core import Budget, ChatModel, RunResult
+from agent.core.builder import AgentSpec, build_agent
 from agent.evals.stats import (
     Outcomes,
     bootstrap_ci,
@@ -27,9 +28,8 @@ from agent.evals.stats import (
     mean_pass_hat_k,
 )
 from agent.evals.tasks import Task, prepare_grading, prepare_workspace
-from agent.permissions import Mode, PermissionPolicy, Rules
+from agent.permissions import Mode, Rules
 from agent.sandbox import DockerSandbox, Sandbox, SandboxError
-from agent.tools import PathGuard, ToolContext, default_tools
 from agent.tools.truncate import head_tail
 
 SandboxFactory = Callable[[Path], AbstractAsyncContextManager[Sandbox]]
@@ -68,6 +68,8 @@ class SuiteConfig:
     concurrency: int = 1
     budget: Budget = field(default_factory=Budget)
     sandbox_factory: SandboxFactory = docker_sandbox
+    compaction: bool = True
+    compact_model: ChatModel | None = None
 
 
 async def run_once(task: Task, attempt: int, cfg: SuiteConfig, workdir: Path) -> RunRecord:
@@ -76,18 +78,24 @@ async def run_once(task: Task, attempt: int, cfg: SuiteConfig, workdir: Path) ->
     result: RunResult | None = None
     try:
         async with cfg.sandbox_factory(ws) as sandbox:
-            agent = Agent(
-                cfg.model,
-                default_tools(),
-                ToolContext(PathGuard(ws), sandbox),
-                PermissionPolicy(Mode.AUTO, cfg.rules),
-                system_prompt=cfg.system_prompt,
+            spec = AgentSpec(
+                base_prompt=cfg.system_prompt,
+                prompt_version=cfg.prompt_version,
+                rules=cfg.rules,
+                mode=Mode.AUTO,
                 budget=replace(cfg.budget, max_turns=min(cfg.budget.max_turns, task.max_turns)),
+                compaction=cfg.compaction,
+            )
+            agent = build_agent(
+                cfg.model,
+                ws,
+                sandbox,
+                spec,
+                compact_model=cfg.compact_model,
                 trace_attributes={
                     "agent.session": "eval",
                     "agent.eval.task_id": task.id,
                     "agent.eval.attempt": attempt,
-                    "agent.prompt_version": cfg.prompt_version,
                 },
             )
             result = await agent.run(task.instruction)

@@ -12,6 +12,7 @@ from agent.tools.base import (
 from agent.tools.bash import Bash
 from agent.tools.files import EditFile, Glob, Grep, ListDir, ReadFile, WriteFile
 from agent.tools.paths import PathError, PathGuard
+from agent.tools.todo import TodoWrite
 
 
 def default_tools() -> ToolRegistry:
@@ -27,6 +28,7 @@ __all__ = [
     "PathError",
     "PathGuard",
     "ReadFile",
+    "TodoWrite",
     "Tool",
     "ToolArgs",
     "ToolContext",

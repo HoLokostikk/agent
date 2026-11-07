@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import asdict
 from enum import StrEnum
 from pathlib import Path
@@ -20,6 +20,8 @@ from rich.syntax import Syntax
 from rich.table import Table
 
 from agent.core import Agent, AgentEvents, Budget, RunResult, ToolCallRecord, load_prompt
+from agent.core.builder import AgentSpec, build_agent
+from agent.core.session import SessionStore
 from agent.llm import (
     CallMetrics,
     ConfigError,
@@ -30,10 +32,10 @@ from agent.llm import (
     get_model,
 )
 from agent.llm.config import load_models
-from agent.permissions import Mode, PermissionPolicy, PolicyError, load_rules
+from agent.permissions import Mode, PolicyError, load_rules
 from agent.sandbox import DockerSandbox, Sandbox, SandboxError, build_image, image_exists
 from agent.telemetry import DEFAULT_TRACE_FILE, Exporter, configure
-from agent.tools import PathGuard, Tool, ToolContext, default_tools
+from agent.tools import Tool, default_tools
 
 DEFAULT_CONFIG = Path("configs/models.yaml")
 DEFAULT_RULES = Path("configs/permissions.yaml")
@@ -119,6 +121,10 @@ def format_run(result: RunResult) -> str:
         cost,
         f"{s.wall_s:.1f}s",
     ]
+    if s.cache_hit_rate is not None:
+        parts.append(f"cache {s.cache_hit_rate:.0%}")
+    if s.compactions:
+        parts.append(f"{s.compactions} compactions")
     if s.invalid_tool_calls:
         parts.append(f"{s.invalid_tool_calls} invalid")
     if s.denied_tool_calls:
@@ -237,10 +243,23 @@ async def _agent_session(
     task: str | None,
     output: Output,
     show_reasoning: bool,
+    compact_model: ModelConfig | None = None,
+    compaction: bool = True,
+    resume: str | None = None,
+    sessions: SessionStore | None = None,
 ) -> int:
     prompt_version, system_prompt = load_prompt(prompt_path)
-    policy = PermissionPolicy(mode, load_rules(rules_path))
+    spec = AgentSpec(
+        base_prompt=system_prompt,
+        prompt_version=prompt_version,
+        rules=load_rules(rules_path),
+        mode=mode,
+        budget=budget,
+        compaction=compaction,
+    )
     client = make_client(model)
+    compact_client = make_client(compact_model) if compact_model is not None else None
+    store = sessions or SessionStore()
     interactive = task is None
     events: AgentEvents | None
     if output is Output.JSON:
@@ -253,22 +272,36 @@ async def _agent_session(
     approver = ConsoleApprover(out) if interactive and mode is Mode.ASK else None
     try:
         async with make_sandbox(root, sandbox_kind) as sandbox:
-            agent = Agent(
+            agent = build_agent(
                 client,
-                default_tools(),
-                ToolContext(PathGuard(root), sandbox),
-                policy,
-                system_prompt=system_prompt,
-                budget=budget,
+                root,
+                sandbox,
+                spec,
+                compact_model=compact_client,
                 approver=approver,
                 events=events,
-                trace_attributes={
-                    "agent.prompt_version": prompt_version,
-                    "agent.session": "repl" if interactive else "headless",
-                },
+                trace_attributes={"agent.session": "repl" if interactive else "headless"},
             )
+            session_id = store.new_id()
+            if resume is not None:
+                meta, history = store.load(resume)
+                session_id = meta["id"]
+                # Keep the current system prompt; replay the rest of the conversation.
+                agent.messages = [agent.messages[0], *history[1:]]
+                err.print(f"[dim]resumed session {session_id} ({len(history) - 1} messages)[/dim]")
+            meta_out = {
+                "created": session_id[:15],
+                "workspace": str(root),
+                "model": model.alias,
+                "prompt_version": prompt_version,
+            }
+
+            def save() -> None:
+                store.save(session_id, agent.messages, meta_out)
+
             if task is not None:
                 result = await agent.run(task)
+                save()
                 if output is Output.JSON:
                     payload = _result_json(result, agent, model, prompt_version, mode, root)
                     out.print_json(json.dumps(payload, default=str))
@@ -280,10 +313,15 @@ async def _agent_session(
                         err.print(f"[dim]trace {result.trace_id}[/dim]")
                     if result.error:
                         err.print(f"[red]{result.error}[/red]")
+                err.print(f"[dim]session {session_id} (agent --resume {session_id})[/dim]")
                 return EXIT_OK if result.completed else EXIT_NOT_COMPLETED
-            return await _repl(agent, model, mode, sandbox is not None)
+            code = await _repl(agent, model, mode, sandbox is not None, save)
+            err.print(f"[dim]session {session_id} (agent --resume {session_id})[/dim]")
+            return code
     finally:
         await client.aclose()
+        if compact_client is not None:
+            await compact_client.aclose()
 
 
 class _HeadlessTextEvents(ConsoleEvents):
@@ -292,7 +330,9 @@ class _HeadlessTextEvents(ConsoleEvents):
             super().on_delta(kind, text)
 
 
-async def _repl(agent: Agent, model: ModelConfig, mode: Mode, has_sandbox: bool) -> int:
+async def _repl(
+    agent: Agent, model: ModelConfig, mode: Mode, has_sandbox: bool, save: Callable[[], None]
+) -> int:
     sandbox_note = "docker sandbox" if has_sandbox else "no sandbox (bash disabled)"
     out.print(
         f"[bold]agent[/bold] · {model.alias} · mode {mode} · {sandbox_note} · /exit to quit",
@@ -309,6 +349,7 @@ async def _repl(agent: Agent, model: ModelConfig, mode: Mode, has_sandbox: bool)
         if text in {"/exit", "/quit"}:
             break
         result = await agent.run(text)
+        save()
         out.print()
         total += result.stats.cost_usd
         out.print(f"[dim]{format_run(result)}[/dim]")
@@ -343,6 +384,13 @@ def main_callback(
     rules: Annotated[Path, typer.Option(help="Permission rules.")] = DEFAULT_RULES,
     system_prompt: Annotated[Path, typer.Option(help="System prompt file.")] = DEFAULT_PROMPT,
     show_reasoning: Annotated[bool, typer.Option(help="Print reasoning tokens.")] = False,
+    compact_model: Annotated[
+        str | None, typer.Option(help="Alias of a cheaper model for compaction and explorer.")
+    ] = None,
+    compaction: Annotated[bool, typer.Option(help="Summarise old turns near the limit.")] = True,
+    resume: Annotated[
+        str | None, typer.Option(help="Continue a saved session: its id, or 'last'.")
+    ] = None,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Log every model call.")] = False,
     trace: Annotated[
         Exporter, typer.Option(envvar="AGENT_TRACE", help="Where spans go (otlp: Phoenix etc.).")
@@ -369,6 +417,7 @@ def main_callback(
     effective_mode = mode or (Mode.AUTO if prompt is not None else Mode.ASK)
     try:
         model_config = get_model(config, model)
+        compact_config = get_model(config, compact_model) if compact_model else None
         code = asyncio.run(
             _agent_session(
                 model=model_config,
@@ -381,6 +430,9 @@ def main_callback(
                 task=prompt,
                 output=output,
                 show_reasoning=show_reasoning,
+                compact_model=compact_config,
+                compaction=compaction,
+                resume=resume,
             )
         )
     except (ConfigError, PolicyError, FileNotFoundError) as exc:
@@ -488,6 +540,15 @@ def build_sandbox() -> None:
         err.print(f"[red]{exc}[/red]")
         raise typer.Exit(EXIT_SANDBOX) from None
     out.print("sandbox image built")
+
+
+@app.command("sessions")
+def sessions_cmd(limit: int = 20) -> None:
+    """Saved sessions, newest first (resume with agent --resume <id>)."""
+    table = Table("id", "model", "messages", "workspace")
+    for info in SessionStore().list(limit):
+        table.add_row(info.id, info.model, str(info.messages), info.workspace)
+    out.print(table)
 
 
 # --- traces ----------------------------------------------------------------------

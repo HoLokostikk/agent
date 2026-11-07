@@ -24,6 +24,7 @@ from openai.types.chat import (
 )
 from opentelemetry.trace import Status, StatusCode
 
+from agent.core.context import Compactor
 from agent.llm import CallMetrics, Completion, LLMError, ModelConfig, OnDelta, ToolCall
 from agent.permissions import Approver, PermissionPolicy, Verdict
 from agent.telemetry import current_trace_id, set_attributes, tracer
@@ -95,6 +96,7 @@ class TurnRecord:
 class RunStats:
     turns: int = 0
     input_tokens: int = 0
+    cached_input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float = 0.0
     cost_known: bool = True
@@ -103,7 +105,13 @@ class RunStats:
     invalid_tool_calls: int = 0
     denied_tool_calls: int = 0
     empty_responses: int = 0
+    compactions: int = 0
     tool_errors: Counter[str] = field(default_factory=Counter)
+
+    @property
+    def cache_hit_rate(self) -> float | None:
+        """Share of input tokens served from the server's prefix cache."""
+        return self.cached_input_tokens / self.input_tokens if self.input_tokens else None
 
     @property
     def invalid_tool_call_rate(self) -> float | None:
@@ -113,6 +121,7 @@ class RunStats:
         data = asdict(self)
         data["tool_errors"] = dict(self.tool_errors)
         data["invalid_tool_call_rate"] = self.invalid_tool_call_rate
+        data["cache_hit_rate"] = self.cache_hit_rate
         return data
 
 
@@ -181,6 +190,7 @@ class Agent:
         events: AgentEvents | None = None,
         clock: Callable[[], float] = time.monotonic,
         trace_attributes: dict[str, Any] | None = None,
+        compactor: Compactor | None = None,
     ) -> None:
         self.model = model
         self.tools = tools
@@ -191,6 +201,10 @@ class Agent:
         self.events = events or AgentEvents()
         self._clock = clock
         self.trace_attributes = trace_attributes or {}
+        self.compactor = compactor
+        self._task_index = 1
+        self._last_input_tokens: int | None = None
+        self._messages_at_last_call = 0
         self.messages: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": system_prompt}
         ]
@@ -229,6 +243,7 @@ class Agent:
 
     async def _run(self, task: str) -> RunResult:
         self.messages.append({"role": "user", "content": task})
+        self._task_index = len(self.messages) - 1
         stats = RunStats()
         turns: list[TurnRecord] = []
         recent: list[tuple[str, str]] = []
@@ -262,6 +277,8 @@ class Agent:
         finish: Callable[..., RunResult],
     ) -> RunResult | None:
         """One model call plus its tool calls; returns a result if the run should stop."""
+        await self._maybe_compact(stats)
+        self._messages_at_last_call = len(self.messages)
         try:
             completion = await self.model.complete(
                 self.messages, tools=schemas, on_delta=self.events.on_delta
@@ -271,6 +288,8 @@ class Agent:
 
         stats.turns += 1
         self._account(stats, completion.metrics)
+        if completion.metrics.usage is not None:
+            self._last_input_tokens = completion.metrics.usage.input_tokens
         empty = not completion.tool_calls and not completion.content.strip()
         if not empty:
             # An assistant message with neither content nor tool calls is
@@ -318,10 +337,37 @@ class Agent:
             return finish(StopReason.CONTEXT_FULL)
         return None
 
+    async def _maybe_compact(self, stats: RunStats) -> None:
+        if self.compactor is None:
+            return
+        window = self.model.config.context_window
+        if not self.compactor.should_compact(
+            self.messages, self._last_input_tokens, self._messages_at_last_call, window
+        ):
+            return
+        with tracer().start_as_current_span("agent.compact") as span:
+            before = len(self.messages)
+            try:
+                compacted = await self.compactor.compact(self.messages, self._task_index)
+            except LLMError as exc:
+                set_attributes(span, {"error.type": exc.kind.value})
+                return  # the context guard stops the run if it really fills up
+            if compacted is None:
+                return
+            self.messages = compacted
+            self._task_index = 1
+            self._last_input_tokens = None
+            self._messages_at_last_call = 0
+            stats.compactions += 1
+            set_attributes(
+                span, {"agent.messages_before": before, "agent.messages_after": len(compacted)}
+            )
+
     @staticmethod
     def _account(stats: RunStats, metrics: CallMetrics) -> None:
         if metrics.usage is not None:
             stats.input_tokens += metrics.usage.input_tokens
+            stats.cached_input_tokens += metrics.usage.cached_input_tokens
             stats.output_tokens += metrics.usage.output_tokens
         if metrics.cost_usd is None:
             stats.cost_known = False
