@@ -32,6 +32,7 @@ from agent.llm import (
 from agent.llm.config import load_models
 from agent.permissions import Mode, PermissionPolicy, PolicyError, load_rules
 from agent.sandbox import DockerSandbox, Sandbox, SandboxError, build_image, image_exists
+from agent.telemetry import DEFAULT_TRACE_FILE, Exporter, configure
 from agent.tools import PathGuard, Tool, ToolContext, default_tools
 
 DEFAULT_CONFIG = Path("configs/models.yaml")
@@ -217,6 +218,7 @@ def _result_json(
         "prompt_version": prompt_version,
         "mode": mode.value,
         "workspace": str(root),
+        "trace_id": result.trace_id,
         "stats": result.stats.as_dict(),
         "turns": [asdict(t) for t in result.turns],
         "messages": agent.messages,
@@ -260,6 +262,10 @@ async def _agent_session(
                 budget=budget,
                 approver=approver,
                 events=events,
+                trace_attributes={
+                    "agent.prompt_version": prompt_version,
+                    "agent.session": "repl" if interactive else "headless",
+                },
             )
             if task is not None:
                 result = await agent.run(task)
@@ -270,6 +276,8 @@ async def _agent_session(
                     if result.final_answer:
                         out.print(result.final_answer, markup=False)
                     err.print(f"[dim]{format_run(result)}[/dim]")
+                    if result.trace_id:
+                        err.print(f"[dim]trace {result.trace_id}[/dim]")
                     if result.error:
                         err.print(f"[red]{result.error}[/red]")
                 return EXIT_OK if result.completed else EXIT_NOT_COMPLETED
@@ -304,6 +312,8 @@ async def _repl(agent: Agent, model: ModelConfig, mode: Mode, has_sandbox: bool)
         out.print()
         total += result.stats.cost_usd
         out.print(f"[dim]{format_run(result)}[/dim]")
+        if result.trace_id:
+            out.print(f"[dim]trace {result.trace_id}[/dim]")
         if result.error:
             out.print(f"[red]{result.error}[/red]")
     out.print(f"[dim]session cost ${total:.6f}[/dim]")
@@ -334,8 +344,17 @@ def main_callback(
     system_prompt: Annotated[Path, typer.Option(help="System prompt file.")] = DEFAULT_PROMPT,
     show_reasoning: Annotated[bool, typer.Option(help="Print reasoning tokens.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Log every model call.")] = False,
+    trace: Annotated[
+        Exporter, typer.Option(envvar="AGENT_TRACE", help="Where spans go (otlp: Phoenix etc.).")
+    ] = Exporter.FILE,
+    trace_file: Annotated[
+        Path, typer.Option(envvar="AGENT_TRACE_FILE", help="JSONL file for --trace file.")
+    ] = DEFAULT_TRACE_FILE,
 ) -> None:
     """Terminal coding agent. No subcommand: interactive REPL; -p: one headless task."""
+    provider = configure(trace, path=trace_file) if ctx.invoked_subcommand != "trace" else None
+    if provider is not None:
+        ctx.call_on_close(provider.shutdown)
     logging.basicConfig(
         level=logging.INFO if verbose else logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -469,6 +488,53 @@ def build_sandbox() -> None:
         err.print(f"[red]{exc}[/red]")
         raise typer.Exit(EXIT_SANDBOX) from None
     out.print("sandbox image built")
+
+
+# --- traces ----------------------------------------------------------------------
+
+trace_app = typer.Typer(no_args_is_help=True, help="Inspect recorded traces.")
+app.add_typer(trace_app, name="trace")
+TraceFileOpt = Annotated[Path, typer.Option("--file", envvar="AGENT_TRACE_FILE")]
+
+
+@trace_app.command("list")
+def trace_list(file: TraceFileOpt = DEFAULT_TRACE_FILE, limit: int = 20) -> None:
+    """Most recent agent runs with their trace ids."""
+    import datetime as dt
+
+    from agent.telemetry.view import runs
+
+    table = Table("trace", "started", "stop reason", "turns", "tools", "cost", "duration")
+    for span in runs(file, limit):
+        a = span.attributes
+        started = dt.datetime.fromtimestamp(span.start_ns / 1e9).strftime("%m-%d %H:%M")
+        cost = a.get("agent.cost_usd")
+        table.add_row(
+            span.trace_id,
+            started,
+            str(a.get("agent.stop_reason", "?")),
+            str(a.get("agent.turns", "?")),
+            str(a.get("agent.tool_calls", "?")),
+            "?" if cost is None else f"${float(cost):.4f}",
+            f"{span.duration_s:.1f}s",
+        )
+    out.print(table)
+
+
+@trace_app.command("show")
+def trace_show(trace_id: str, file: TraceFileOpt = DEFAULT_TRACE_FILE) -> None:
+    """One trace as a tree: run → turns → model calls and tool calls."""
+    from agent.telemetry.view import render_tree
+
+    out.print(render_tree(file, trace_id), markup=False)
+
+
+@trace_app.command("stats")
+def trace_stats(file: TraceFileOpt = DEFAULT_TRACE_FILE) -> None:
+    """p50/p95 latency and TTFT per model, cost per run, tool failure rates."""
+    from agent.telemetry.view import stats
+
+    out.print_json(json.dumps(stats(file)))
 
 
 # --- evals -----------------------------------------------------------------------

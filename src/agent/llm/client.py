@@ -26,11 +26,13 @@ from openai.types.chat import (
     ChatCompletionToolParam,
 )
 from openai.types.chat.chat_completion_chunk import ChoiceDelta
+from opentelemetry.trace import SpanKind, Status, StatusCode
 
 from agent.llm.config import ModelConfig
 from agent.llm.errors import ErrorKind, LLMError, classify
 from agent.llm.retry import backoff_delay
 from agent.llm.types import CallMetrics, Completion, ToolCall, Usage, compute_cost
+from agent.telemetry import set_attributes, tracer
 
 logger = logging.getLogger("agent.llm")
 
@@ -146,6 +148,70 @@ class LLMClient:
 
         Raises :class:`LLMError`; nothing else escapes.
         """
+        cfg = self.config
+        with tracer().start_as_current_span(f"chat {cfg.model}", kind=SpanKind.CLIENT) as span:
+            set_attributes(
+                span,
+                {
+                    "gen_ai.operation.name": "chat",
+                    "gen_ai.request.model": cfg.model,
+                    "gen_ai.request.temperature": cfg.sampling.temperature,
+                    "gen_ai.request.top_p": cfg.sampling.top_p,
+                    "gen_ai.request.max_tokens": max_tokens,
+                    "server.address": httpx2.URL(cfg.base_url).host,
+                    "agent.model.alias": cfg.alias,
+                    "agent.model.revision": cfg.revision,
+                },
+            )
+            try:
+                completion = await self._complete(
+                    messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    max_tokens=max_tokens,
+                    on_delta=on_delta,
+                )
+            except LLMError as exc:
+                set_attributes(
+                    span,
+                    {
+                        "error.type": exc.kind.value,
+                        "agent.attempts": exc.attempts,
+                        "http.response.status_code": exc.status_code,
+                    },
+                )
+                span.set_status(Status(StatusCode.ERROR, exc.kind.value))
+                raise
+            m = completion.metrics
+            set_attributes(
+                span,
+                {
+                    "gen_ai.response.finish_reasons": [m.finish_reason or "unknown"],
+                    "gen_ai.usage.input_tokens": m.usage.input_tokens if m.usage else None,
+                    "gen_ai.usage.output_tokens": m.usage.output_tokens if m.usage else None,
+                    "agent.usage.cached_input_tokens": (
+                        m.usage.cached_input_tokens if m.usage else None
+                    ),
+                    "agent.usage.reasoning_tokens": m.usage.reasoning_tokens if m.usage else None,
+                    "agent.cost_usd": m.cost_usd,
+                    "agent.ttft_s": m.ttft_s,
+                    "agent.latency_s": m.latency_s,
+                    "agent.output_tokens_per_s": m.output_tokens_per_s,
+                    "agent.attempts": m.attempts,
+                    "agent.tool_calls": len(completion.tool_calls),
+                },
+            )
+            return completion
+
+    async def _complete(
+        self,
+        messages: Sequence[ChatCompletionMessageParam],
+        *,
+        tools: Iterable[ChatCompletionToolParam] | None,
+        tool_choice: ChatCompletionToolChoiceOptionParam | None,
+        max_tokens: int | None,
+        on_delta: OnDelta | None,
+    ) -> Completion:
         policy = self.config.retry
         total_s = self.config.timeouts.total_s
         started_at = self._clock()

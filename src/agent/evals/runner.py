@@ -55,6 +55,7 @@ class RunRecord:
     turns: list[dict[str, Any]]
     wall_s: float
     error: str | None = None  # infrastructure failure, not an agent failure
+    trace_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -82,6 +83,12 @@ async def run_once(task: Task, attempt: int, cfg: SuiteConfig, workdir: Path) ->
                 PermissionPolicy(Mode.AUTO, cfg.rules),
                 system_prompt=cfg.system_prompt,
                 budget=replace(cfg.budget, max_turns=min(cfg.budget.max_turns, task.max_turns)),
+                trace_attributes={
+                    "agent.session": "eval",
+                    "agent.eval.task_id": task.id,
+                    "agent.eval.attempt": attempt,
+                    "agent.prompt_version": cfg.prompt_version,
+                },
             )
             result = await agent.run(task.instruction)
         tampered = prepare_grading(task, ws)
@@ -112,6 +119,7 @@ async def run_once(task: Task, attempt: int, cfg: SuiteConfig, workdir: Path) ->
         stats=result.stats.as_dict(),
         turns=[asdict(t) for t in result.turns],
         wall_s=time.monotonic() - started,
+        trace_id=result.trace_id,
     )
 
 

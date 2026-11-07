@@ -73,6 +73,21 @@ def render_tasks(data: dict[str, Any], source: str) -> str:
     lines += ["", "| task | passed |", "|---|---|"]
     for task, row in s["per_task"].items():
         lines.append(f"| {task} | {row['passed']}/{row['runs']} |")
+    failed = [r for r in data["runs"] if not r["passed"]]
+    if failed:
+        lines += [
+            "",
+            "Failed runs (open with `agent trace show <trace>`):",
+            "",
+            "| task | # | stop reason | turns | trace |",
+            "|---|---|---|---|---|",
+        ]
+        for r in failed:
+            trace = f"`{r['trace_id']}`" if r.get("trace_id") else "—"
+            turns = r["stats"].get("turns", "—") if r["stats"] else "—"
+            lines.append(
+                f"| {r['task_id']} | {r['attempt']} | {r['stop_reason']} | {turns} | {trace} |"
+            )
     return "\n".join(lines) + "\n"
 
 

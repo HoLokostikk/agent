@@ -3,7 +3,7 @@
 A terminal coding agent built on an open-weight model (Qwen3.8-27B), with a
 hand-written agent loop, sandboxed tools, evals with CI gates and tracing.
 
-**Status:** phase 2 (agent core MVP). No results yet — every number that appears
+**Status:** phases 0–2 done; phase 3 (evals) and 4 (tracing) implemented, baselines pending. No results yet — every number that appears
 here later will link to the report it came from.
 
 ## Development
@@ -33,6 +33,17 @@ denied commands and protected paths are in `configs/permissions.yaml`.
 Every model call reports tokens, cost, latency and TTFT; every run reports its
 stop reason, turns, tool calls and invalid tool calls. Hosted models read their
 API key from `.env` (see `.env.example`).
+
+## Tracing
+
+Spans go to `~/.local/state/agent/traces.jsonl` by default (`--trace none |
+file | console | otlp`; otlp follows `OTEL_EXPORTER_OTLP_ENDPOINT`, e.g. a local
+Phoenix). Spans carry metrics and decisions, never message content, and every
+attribute is redacted for keys, tokens and emails.
+
+    agent trace list          # recent runs with trace ids
+    agent trace show <id>     # run → turns → model and tool calls
+    agent trace stats         # p50/p95 latency and TTFT, tool failure rates
 
 ## Evals
 

@@ -22,9 +22,11 @@ from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
 )
+from opentelemetry.trace import Status, StatusCode
 
 from agent.llm import CallMetrics, Completion, LLMError, ModelConfig, OnDelta, ToolCall
 from agent.permissions import Approver, PermissionPolicy, Verdict
+from agent.telemetry import current_trace_id, set_attributes, tracer
 from agent.tools import ToolContext, ToolInputError, ToolKind, ToolRegistry, ToolResult
 from agent.tools.truncate import head_tail
 
@@ -121,6 +123,7 @@ class RunResult:
     stats: RunStats
     turns: list[TurnRecord]
     error: str | None = None
+    trace_id: str | None = None
 
     @property
     def completed(self) -> bool:
@@ -177,6 +180,7 @@ class Agent:
         approver: Approver | None = None,
         events: AgentEvents | None = None,
         clock: Callable[[], float] = time.monotonic,
+        trace_attributes: dict[str, Any] | None = None,
     ) -> None:
         self.model = model
         self.tools = tools
@@ -186,11 +190,44 @@ class Agent:
         self.approver = approver
         self.events = events or AgentEvents()
         self._clock = clock
+        self.trace_attributes = trace_attributes or {}
         self.messages: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": system_prompt}
         ]
 
     async def run(self, task: str) -> RunResult:
+        with tracer().start_as_current_span("invoke_agent") as span:
+            set_attributes(
+                span,
+                {
+                    "gen_ai.operation.name": "invoke_agent",
+                    "agent.permission.mode": self.policy.mode.value,
+                    "agent.model.alias": self.model.config.alias,
+                    "agent.model.revision": self.model.config.revision,
+                    **self.trace_attributes,
+                },
+            )
+            result = await self._run(task)
+            s = result.stats
+            set_attributes(
+                span,
+                {
+                    "agent.stop_reason": result.stop_reason.value,
+                    "agent.turns": s.turns,
+                    "agent.tool_calls": s.tool_calls,
+                    "agent.invalid_tool_calls": s.invalid_tool_calls,
+                    "agent.denied_tool_calls": s.denied_tool_calls,
+                    "gen_ai.usage.input_tokens": s.input_tokens,
+                    "gen_ai.usage.output_tokens": s.output_tokens,
+                    "agent.cost_usd": s.cost_usd if s.cost_known else None,
+                },
+            )
+            if result.stop_reason is StopReason.MODEL_ERROR:
+                span.set_status(Status(StatusCode.ERROR, result.error or "model error"))
+            result.trace_id = current_trace_id()
+            return result
+
+    async def _run(self, task: str) -> RunResult:
         self.messages.append({"role": "user", "content": task})
         stats = RunStats()
         turns: list[TurnRecord] = []
@@ -210,63 +247,76 @@ class Agent:
             if self._clock() - started >= self.budget.max_wall_s:
                 return finish(StopReason.MAX_TIME)
 
-            try:
-                completion = await self.model.complete(
-                    self.messages, tools=schemas, on_delta=self.events.on_delta
-                )
-            except LLMError as exc:
-                return finish(StopReason.MODEL_ERROR, error=str(exc))
+            with tracer().start_as_current_span("agent.turn") as turn_span:
+                set_attributes(turn_span, {"agent.turn": stats.turns + 1})
+                outcome = await self._turn(schemas, stats, turns, recent, finish)
+            if outcome is not None:
+                return outcome
 
-            stats.turns += 1
-            self._account(stats, completion.metrics)
-            empty = not completion.tool_calls and not completion.content.strip()
-            if not empty:
-                # An assistant message with neither content nor tool calls is
-                # invalid for several servers, so an empty reply is not echoed.
-                self.messages.append(completion.to_message())
-            turn = TurnRecord(
-                turn=stats.turns,
-                content=completion.content,
-                reasoning=completion.reasoning,
-                finish_reason=completion.finish_reason,
-                metrics=completion.metrics,
+    async def _turn(
+        self,
+        schemas: list[ChatCompletionToolParam],
+        stats: RunStats,
+        turns: list[TurnRecord],
+        recent: list[tuple[str, str]],
+        finish: Callable[..., RunResult],
+    ) -> RunResult | None:
+        """One model call plus its tool calls; returns a result if the run should stop."""
+        try:
+            completion = await self.model.complete(
+                self.messages, tools=schemas, on_delta=self.events.on_delta
             )
-            turns.append(turn)
+        except LLMError as exc:
+            return finish(StopReason.MODEL_ERROR, error=str(exc))
 
-            if empty:
-                stats.empty_responses += 1
-                self.events.on_turn_end(turn)
-                if stats.empty_responses > self.budget.max_empty_nudges:
-                    return finish(StopReason.EMPTY_RESPONSE)
-                self.messages.append({"role": "user", "content": EMPTY_NUDGE})
-                continue
-            if not completion.tool_calls:
-                self.events.on_turn_end(turn)
-                return finish(StopReason.COMPLETED, answer=completion.content)
+        stats.turns += 1
+        self._account(stats, completion.metrics)
+        empty = not completion.tool_calls and not completion.content.strip()
+        if not empty:
+            # An assistant message with neither content nor tool calls is
+            # invalid for several servers, so an empty reply is not echoed.
+            self.messages.append(completion.to_message())
+        turn = TurnRecord(
+            turn=stats.turns,
+            content=completion.content,
+            reasoning=completion.reasoning,
+            finish_reason=completion.finish_reason,
+            metrics=completion.metrics,
+        )
+        turns.append(turn)
 
-            for call in completion.tool_calls:
-                record = await self._execute(call, stats)
-                turn.tool_calls.append(record)
-                self.messages.append(
-                    {"role": "tool", "tool_call_id": call.id, "content": record.output}
-                )
-                recent.append(_call_signature(call))
+        if empty:
+            stats.empty_responses += 1
             self.events.on_turn_end(turn)
+            if stats.empty_responses > self.budget.max_empty_nudges:
+                return finish(StopReason.EMPTY_RESPONSE)
+            self.messages.append({"role": "user", "content": EMPTY_NUDGE})
+            return None
+        if not completion.tool_calls:
+            self.events.on_turn_end(turn)
+            return finish(StopReason.COMPLETED, answer=completion.content)
 
-            limit = self.budget.repeat_limit
-            if len(recent) >= limit and len(set(recent[-limit:])) == 1:
-                return finish(StopReason.LOOP_DETECTED)
-            if stats.input_tokens + stats.output_tokens >= self.budget.max_total_tokens:
-                return finish(StopReason.MAX_TOKENS)
-            if stats.cost_known and stats.cost_usd >= self.budget.max_cost_usd:
-                return finish(StopReason.MAX_COST)
-            usage = completion.metrics.usage
-            window = self.model.config.context_window
-            if (
-                usage is not None
-                and usage.input_tokens >= window * self.budget.max_context_fraction
-            ):
-                return finish(StopReason.CONTEXT_FULL)
+        for call in completion.tool_calls:
+            record = await self._execute(call, stats)
+            turn.tool_calls.append(record)
+            self.messages.append(
+                {"role": "tool", "tool_call_id": call.id, "content": record.output}
+            )
+            recent.append(_call_signature(call))
+        self.events.on_turn_end(turn)
+
+        limit = self.budget.repeat_limit
+        if len(recent) >= limit and len(set(recent[-limit:])) == 1:
+            return finish(StopReason.LOOP_DETECTED)
+        if stats.input_tokens + stats.output_tokens >= self.budget.max_total_tokens:
+            return finish(StopReason.MAX_TOKENS)
+        if stats.cost_known and stats.cost_usd >= self.budget.max_cost_usd:
+            return finish(StopReason.MAX_COST)
+        usage = completion.metrics.usage
+        window = self.model.config.context_window
+        if usage is not None and usage.input_tokens >= window * self.budget.max_context_fraction:
+            return finish(StopReason.CONTEXT_FULL)
+        return None
 
     @staticmethod
     def _account(stats: RunStats, metrics: CallMetrics) -> None:
@@ -279,6 +329,38 @@ class Agent:
             stats.cost_usd += metrics.cost_usd
 
     async def _execute(self, call: ToolCall, stats: RunStats) -> ToolCallRecord:
+        with tracer().start_as_current_span(f"execute_tool {call.name}") as span:
+            set_attributes(
+                span,
+                {
+                    "gen_ai.operation.name": "execute_tool",
+                    "gen_ai.tool.name": call.name,
+                    "gen_ai.tool.call.id": call.id,
+                },
+            )
+            record = await self._execute_inner(call, stats)
+            attributes: dict[str, Any] = {
+                "agent.permission.verdict": record.verdict,
+                "agent.tool.ok": record.ok,
+                "agent.tool.output_chars": len(record.output),
+            }
+            if call.name == "bash":
+                # The action itself is worth auditing; it is redacted like everything else.
+                try:
+                    command = json.loads(call.arguments).get("command")
+                except (json.JSONDecodeError, AttributeError):
+                    command = None
+                if isinstance(command, str):
+                    attributes["agent.tool.command"] = command[:500]
+                first = record.output.split("\n", 1)[0]
+                if first.startswith("exit code: "):
+                    attributes["process.exit.code"] = int(first.split()[2])
+            set_attributes(span, attributes)
+            if not record.ok:
+                span.set_status(Status(StatusCode.ERROR, record.verdict))
+            return record
+
+    async def _execute_inner(self, call: ToolCall, stats: RunStats) -> ToolCallRecord:
         stats.tool_calls += 1
         self.events.on_tool_start(call)
         started = self._clock()
