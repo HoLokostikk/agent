@@ -94,3 +94,11 @@ async def test_run_and_summarize() -> None:
     assert summary["invalid_json_rate"] == pytest.approx(1 / 2)
     assert summary["no_call_rate"] == pytest.approx(1 / 3)
     assert {f["case_id"] for f in summary["failures"]} == {"b", "c"}
+
+
+def test_omitted_arguments_are_graded_as_their_defaults() -> None:
+    case = Case(id="root", prompt="p", expect=[Expectation(tool="list_dir", args={"path": "."})])
+
+    assert grade(case, "list_dir", "{}") == ("wrong_args", "mismatched: path")
+    assert grade(case, "list_dir", "{}", default_tools())[0] == "correct"
+    assert grade(case, "list_dir", '{"bogus": 1}', default_tools())[0] == "wrong_args"

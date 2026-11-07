@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from agent.core import ChatModel
 from agent.evals.stats import bootstrap_ci, mean_pass_at_k
 from agent.llm import LLMError
-from agent.tools import ToolRegistry
+from agent.tools import ToolInputError, ToolRegistry
 
 
 class CaseError(Exception):
@@ -106,7 +106,15 @@ class CaseResult:
         return self.outcome == "correct"
 
 
-def grade(case: Case, tool: str | None, arguments: str | None) -> tuple[str, str]:
+def grade(
+    case: Case, tool: str | None, arguments: str | None, tools: ToolRegistry | None = None
+) -> tuple[str, str]:
+    """Classify the first tool call against the case.
+
+    With ``tools`` given, arguments are validated through the tool's schema
+    first, so an omitted argument is compared as its default (``list_dir({})``
+    means ``path="."``), exactly as the agent would execute it.
+    """
     if tool is None:
         return "no_call", ""
     try:
@@ -115,6 +123,12 @@ def grade(case: Case, tool: str | None, arguments: str | None) -> tuple[str, str
         return "invalid_json", exc.msg
     if not isinstance(args, dict):
         return "invalid_json", "arguments are not an object"
+    if tools is not None and tool in tools:
+        try:
+            _, validated = tools.parse(tool, arguments or "{}")
+        except ToolInputError as exc:
+            return "wrong_args", str(exc)
+        args = validated.model_dump()
     candidates = [e for e in case.expect if e.tool == tool]
     if not candidates:
         return "wrong_tool", f"expected {' or '.join(e.tool for e in case.expect)}"
@@ -141,7 +155,9 @@ async def run_case(
     except LLMError as exc:
         return CaseResult(case.id, attempt, "model_error", None, None, str(exc))
     first = completion.tool_calls[0] if completion.tool_calls else None
-    outcome, detail = grade(case, first.name if first else None, first.arguments if first else None)
+    outcome, detail = grade(
+        case, first.name if first else None, first.arguments if first else None, tools
+    )
     return CaseResult(
         case.id,
         attempt,

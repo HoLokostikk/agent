@@ -591,6 +591,10 @@ def eval_tasks(
         err.print("[red]no tasks selected[/red]")
         raise typer.Exit(EXIT_USAGE)
 
+    from agent.evals.runner import git_revision
+
+    git = git_revision(Path.cwd())
+
     async def go() -> Path:
         client = make_client(model_config)
         if not await image_exists():
@@ -625,6 +629,7 @@ def eval_tasks(
                 summary,
                 [asdict(r) for r in records],
                 {"tasks_dir": str(tasks_dir), "budget": asdict(cfg.budget)},
+                git=git,
             )
             return _write_results(payload, out_dir, "tasks", model_config.alias, version)
         finally:
@@ -657,6 +662,10 @@ def eval_toolcalls(
         err.print(f"[red]config error:[/red] {exc}")
         raise typer.Exit(EXIT_USAGE) from None
 
+    from agent.evals.runner import git_revision
+
+    git = git_revision(Path.cwd())
+
     async def go() -> Path:
         client = make_client(model_config)
         try:
@@ -676,6 +685,7 @@ def eval_toolcalls(
                 summarize_cases(results),
                 [asdict(r) for r in results],
                 {"cases_file": str(cases)},
+                git=git,
             )
             return _write_results(payload, out_dir, "toolcalls", model_config.alias, version)
         finally:

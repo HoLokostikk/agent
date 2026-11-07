@@ -243,13 +243,16 @@ def results_payload(
     summary: dict[str, Any],
     runs: list[dict[str, Any]],
     extra: dict[str, Any] | None = None,
+    git: str | None = None,
 ) -> dict[str, Any]:
+    """``git`` should be captured before the runs start: editing code during a
+    long eval would otherwise label the results with the wrong revision."""
     cfg = model.config
     return {
         "schema_version": 1,
         "kind": kind,
         "created": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
-        "git": git_revision(Path.cwd()),
+        "git": git or git_revision(Path.cwd()),
         "model": {
             "alias": cfg.alias,
             "model": cfg.model,
