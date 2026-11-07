@@ -1,4 +1,4 @@
-.PHONY: fmt lint typecheck test check
+.PHONY: fmt lint typecheck test test-live check
 
 fmt:
 	uv run ruff format .
@@ -13,5 +13,8 @@ typecheck:
 
 test:
 	uv run pytest
+
+test-live:
+	uv run pytest -m live
 
 check: lint typecheck test

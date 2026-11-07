@@ -1,0 +1,41 @@
+# Model registry: alias -> endpoint, pinned revision, context window, prices.
+#
+# Every entry is pinned to an immutable revision. A moving alias (an Ollama
+# tag, an unversioned provider id) makes every eval number unreproducible.
+# Prices are USD per 1M tokens.
+
+models:
+  local-small:
+    base_url: http://localhost:11434/v1
+    model: qwen2.5:3b-instruct-q4_K_M
+    # Ollama tags move; the digest from /api/tags does not.
+    revision: sha256:357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b
+    # The model supports 32768, but Ollama serves 4096 unless the server is
+    # started with OLLAMA_CONTEXT_LENGTH, and the OpenAI-compatible endpoint
+    # cannot change it per request. Longer prompts are truncated silently.
+    context_window: 4096
+    pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
+    # Qwen2.5 instruct recommended sampling.
+    sampling: {temperature: 0.7, top_p: 0.8, top_k: 20}
+
+  local-tiny:
+    base_url: http://localhost:11434/v1
+    model: qwen2.5:0.5b-instruct-q8_0
+    revision: sha256:84d044692a2ce0a5a063d3177ca7a69fb189fd81b3139a7a3ead74ccf42a51dc
+    context_window: 4096
+    pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
+    sampling: {temperature: 0.7, top_p: 0.8, top_k: 20}
+
+  qwen27b-hosted:
+    base_url: https://openrouter.ai/api/v1
+    model: qwen/qwen3.8-27b-20260814
+    # Dated provider snapshot. The Hugging Face commit is not verified yet,
+    # see docs/status.md.
+    revision: qwen/qwen3.8-27b-20260814
+    context_window: 262144
+    api_key_env: OPENROUTER_API_KEY
+    # Unverified: taken from one provider listing, see docs/status.md.
+    pricing: {input_per_mtok: 0.58, output_per_mtok: 3.45}
+    # Thinking-mode recommendation (thinking is on by default for this model).
+    sampling: {temperature: 1.0, top_p: 0.95, top_k: 20}
+    timeouts: {connect_s: 10.0, read_s: 120.0, total_s: 600.0}

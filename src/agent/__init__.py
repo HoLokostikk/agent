@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from agent!")
+"""Terminal coding agent on an open-weight model."""

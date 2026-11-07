@@ -14,10 +14,12 @@ Current state and decisions: `docs/status.md`.
 
 - **Communicate in Ukrainian.** Code, comments, docstrings, commit messages and
   all repo documentation in English.
-- **One step at a time.** Do the current step, show the result, stop. Do not
-  queue up the next two hours of work in a single message.
-- **No silent scope creep.** If something outside the current step needs fixing,
-  say so and wait.
+- **Claude writes all the code** (decided 2026-11-07, reversing the earlier
+  split). Work autonomously, phase by phase, without stopping after each step.
+  Stop only for what needs the author: money, credentials, accounts, or a
+  decision that changes the plan's goals.
+- **Scope.** Fixes needed to finish the current phase are in scope; note them
+  in the journal. Anything that changes the plan goes into `docs/status.md`.
 - **Every phase ends in a working state:** `make check` green, a commit, and an
   entry in `EXPERIMENTS.md`.
 - **Evals come before optimisation and before fine-tuning.** A number without a
