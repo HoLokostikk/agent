@@ -1,0 +1,39 @@
+# Permission rules. The sandbox (no network, no capabilities, workspace-only
+# mount) is the real security boundary; these rules are a second layer that
+# stops obviously destructive or exfiltrating commands and decides what needs
+# a human in "ask" mode.
+
+bash:
+  # Python regexes, matched anywhere in the command. Denied in every mode.
+  # Best effort: shell has too many spellings to catch them all.
+  deny:
+    - '\brm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)+(/|~|\$HOME|\*|\.)(\s|$)'
+    - '\b(curl|wget|nc|ncat|netcat|ssh|scp|rsync|ftp|telnet)\b'
+    - '\bsudo\b|\bsu\s'
+    - '\bgit\s+push\b'
+    - '\bmkfs\b|\bdd\s+if='
+    - ':\(\)\s*\{'           # fork bomb
+    - '\bchmod\s+-R\s+777\b'
+  # fnmatch patterns on the whole command. In "ask" mode a matching command
+  # runs without asking, but only if it has no shell metacharacters
+  # (; & | ` $( > <), so "pytest; rm x" does not ride on "pytest*".
+  allow:
+    - 'pytest*'
+    - 'python -m pytest*'
+    - 'ls*'
+    - 'cat *'
+    - 'head *'
+    - 'tail *'
+    - 'wc *'
+    - 'git status*'
+    - 'git diff*'
+    - 'git log*'
+    - 'python --version'
+
+# fnmatch patterns on workspace-relative paths. Writes here are denied in
+# every mode.
+write_deny:
+  - '.git/*'
+  - '.git'
+  - '.env'
+  - '.env.*'

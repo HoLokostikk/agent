@@ -7,13 +7,14 @@
 models:
   local-small:
     base_url: http://localhost:11434/v1
-    model: qwen2.5:3b-instruct-q4_K_M
+    # qwen2.5:3b-instruct-q4_K_M with num_ctx 8192 and a fixed tool-call template
+    # (configs/ollama/qwen2.5-3b-instruct-8k.Modelfile). Ollama serves 4096
+    # by default and the OpenAI-compatible endpoint cannot change it per
+    # request; longer prompts would be truncated silently.
+    model: qwen2.5-3b-instruct-8k
     # Ollama tags move; the digest from /api/tags does not.
-    revision: sha256:357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b
-    # The model supports 32768, but Ollama serves 4096 unless the server is
-    # started with OLLAMA_CONTEXT_LENGTH, and the OpenAI-compatible endpoint
-    # cannot change it per request. Longer prompts are truncated silently.
-    context_window: 4096
+    revision: sha256:155251c4b20a9a96f844f6ed01e45338b06fe4ad5c456660b58eee40d7dd7cea
+    context_window: 8192
     pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
     # Qwen2.5 instruct recommended sampling.
     sampling: {temperature: 0.7, top_p: 0.8, top_k: 20}
