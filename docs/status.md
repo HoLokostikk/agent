@@ -137,9 +137,16 @@ gpu/laptop_measure.sh tasks`) можна робити до оренди.
 
 **Що вже виміряно на 3B локально:** tool-call eval, 3 повтори — 73.3%,
 73.3%, 76.7% (`evals/results/2026-11-07T22*`); поріг gate з розкиду — 7 п.п.
+Golden set, k=3: pass@1 11.1% [2.8%, 19.4%], pass@3 33.3%, pass^3 0%
+(`evals/results/2026-11-08T0907_tasks_*`).
 
-**Не зроблено:** повний список — `~/AgentAI/ml-job-projects/NOT_DONE.md`
-(розділ «Агент»).
+**Не зроблено** (коротко; деталі — у журналі):
+- усі виміри на 27B (`gpu/`): baseline, бенчмарк serving, траєкторії, SFT, порівняння, rollback drill;
+- шлях через OpenRouter (немає ключа);
+- red-team набір prompt injection і ASR; розмічений набір команд для FPR правил;
+- LLM-as-judge, підмножина SWE-bench Verified, golden set до 30–50 задач;
+- retrieval eval на реальному репо; сторонні MCP-сервери; Phoenix через OTLP;
+- `/rewind`, DPO/GRPO, таблиця квантизації, ADR 0002–0003, demo і пост.
 
 ## Потрібно від автора
 

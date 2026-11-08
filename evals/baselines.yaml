@@ -13,5 +13,6 @@ max_drop:
 
 local-small:
   toolcalls: evals/results/2026-11-07T2216_toolcalls_local-small_system.v1.json
+  tasks: evals/results/2026-11-08T0907_tasks_local-small_system.v1.json
 
 qwen27b-hosted: {}     # needs OPENROUTER_API_KEY; the CI gate skips until set
