@@ -135,6 +135,9 @@ CI зелений. Числа, яким потрібна 27B, ще не вимі
 кроків, ~8–11 GPU-годин, ~$20–30). Крок 6 (`PER_REPO=50 bash
 gpu/laptop_measure.sh tasks`) можна робити до оренди.
 
+**Golden set:** 30 задач (2026-11-08), оракули всіх перевірені в Docker —
+метрика №1 з `docs/design.md` виконана.
+
 **Що вже виміряно на 3B локально:** tool-call eval, 3 повтори — 73.3%,
 73.3%, 76.7% (`evals/results/2026-11-07T22*`); поріг gate з розкиду — 7 п.п.
 Golden set, k=3: pass@1 11.1% [2.8%, 19.4%], pass@3 33.3%, pass^3 0%
@@ -144,8 +147,9 @@ Golden set, k=3: pass@1 11.1% [2.8%, 19.4%], pass@3 33.3%, pass^3 0%
 - усі виміри на 27B (`gpu/`): baseline, бенчмарк serving, траєкторії, SFT, порівняння, rollback drill;
 - шлях через OpenRouter (немає ключа);
 - red-team набір prompt injection і ASR; розмічений набір команд для FPR правил;
-- LLM-as-judge, підмножина SWE-bench Verified, golden set до 30–50 задач;
-- retrieval eval на реальному репо; сторонні MCP-сервери; Phoenix через OTLP;
+- LLM-as-judge, підмножина SWE-bench Verified;
+- retrieval eval на реальному репо (крок 11b у `gpu/README.md`: на ноутбуці GitHub віддає ~6 КБ/с);
+- сторонні MCP-сервери; Phoenix через OTLP;
 - `/rewind`, DPO/GRPO, таблиця квантизації, ADR 0002–0003, demo і пост.
 
 ## Потрібно від автора
