@@ -1,0 +1,7 @@
+id: password-rules-feature
+instruction: >-
+  Implement validate_password in passwords.py so it follows its docstring. Do not change the tests. Run the tests with: python -m pytest -q
+test_command: python -m pytest -q
+tags: [python, feature, validation]
+difficulty: easy
+max_turns: 20
