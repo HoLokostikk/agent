@@ -29,6 +29,7 @@ from agent.llm import CallMetrics, Completion, LLMError, ModelConfig, OnDelta, T
 from agent.permissions import Approver, PermissionPolicy, Verdict
 from agent.telemetry import current_trace_id, set_attributes, tracer
 from agent.tools import ToolContext, ToolInputError, ToolKind, ToolRegistry, ToolResult
+from agent.tools.sanitize import sanitize
 from agent.tools.truncate import head_tail
 
 
@@ -242,6 +243,8 @@ class Agent:
             return result
 
     async def _run(self, task: str) -> RunResult:
+        if self.ctx.checkpoints is not None:
+            self.ctx.checkpoints.begin(task[:60])
         self.messages.append({"role": "user", "content": task})
         self._task_index = len(self.messages) - 1
         stats = RunStats()
@@ -412,7 +415,7 @@ class Agent:
         started = self._clock()
 
         def record(verdict: str, result: ToolResult) -> ToolCallRecord:
-            output = head_tail(result.output, max_chars=self.budget.max_tool_output_chars)
+            output = head_tail(sanitize(result.output), max_chars=self.budget.max_tool_output_chars)
             rec = ToolCallRecord(
                 id=call.id,
                 name=call.name,

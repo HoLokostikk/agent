@@ -317,6 +317,8 @@ class EditFile(Tool):
             path, before, after = self._plan(args, ctx.guard)
         except PathError as exc:
             return ToolResult(False, str(exc))
+        if ctx.checkpoints is not None:
+            ctx.checkpoints.remember(path)
         _write_text(path, after)
         start = before[: before.index(args.old_string)].count("\n") + 1
         new_lines = after.splitlines()
@@ -360,6 +362,8 @@ class WriteFile(Tool):
         if path.is_dir():
             return ToolResult(False, f"{args.path} is a directory")
         existed = path.exists()
+        if ctx.checkpoints is not None:
+            ctx.checkpoints.remember(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         _write_text(path, args.content)
         lines = args.content.count("\n") + (0 if args.content.endswith("\n") else 1)

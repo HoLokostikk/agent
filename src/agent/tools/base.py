@@ -17,6 +17,7 @@ from openai.types.chat import ChatCompletionToolParam
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from agent.sandbox.base import Sandbox
+from agent.tools.checkpoint import CheckpointStack
 from agent.tools.paths import PathGuard
 
 
@@ -40,6 +41,7 @@ class ToolResult:
 class ToolContext:
     guard: PathGuard
     sandbox: Sandbox | None
+    checkpoints: CheckpointStack | None = None
 
 
 class ToolInputError(Exception):

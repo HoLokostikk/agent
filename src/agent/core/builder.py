@@ -20,6 +20,7 @@ from agent.rag.search import Searcher
 from agent.rag.tool import SearchCode
 from agent.sandbox import Sandbox
 from agent.tools import PathGuard, Tool, ToolContext, ToolRegistry, default_tools
+from agent.tools.checkpoint import CheckpointStack
 from agent.tools.todo import TodoWrite
 
 # Below this window the extra tool schemas cost more than they help.
@@ -72,7 +73,7 @@ def build_agent(
     return Agent(
         model,
         build_tools(model, spec, compact_model, extra_tools),
-        ToolContext(PathGuard(workspace), sandbox),
+        ToolContext(PathGuard(workspace), sandbox, CheckpointStack()),
         PermissionPolicy(spec.mode, spec.rules),
         system_prompt=build_system_prompt(spec.base_prompt, workspace),
         budget=spec.budget,

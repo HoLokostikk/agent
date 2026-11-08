@@ -37,6 +37,7 @@ from agent.rag.search import Searcher
 from agent.sandbox import DockerSandbox, Sandbox, SandboxError, build_image, image_exists
 from agent.telemetry import DEFAULT_TRACE_FILE, Exporter, configure
 from agent.tools import Tool, default_tools
+from agent.tools.sanitize import sanitize
 
 DEFAULT_CONFIG = Path("configs/models.yaml")
 DEFAULT_RULES = Path("configs/permissions.yaml")
@@ -156,6 +157,7 @@ class ConsoleEvents(AgentEvents):
         self._mid_line = False
 
     def on_delta(self, kind: str, text: str) -> None:
+        text = sanitize(text)
         if kind == "content":
             self.console.print(text, end="", markup=False)
             self._mid_line = not text.endswith("\n")
@@ -361,6 +363,20 @@ async def _repl(
             continue
         if text in {"/exit", "/quit"}:
             break
+        if text == "/help":
+            out.print("/undo  revert the files changed by the last request\n/exit  quit")
+            continue
+        if text == "/undo":
+            stack = agent.ctx.checkpoints
+            undone = stack.undo() if stack is not None else None
+            if undone is None:
+                out.print("[dim]nothing to undo[/dim]")
+            else:
+                label, paths = undone
+                names = ", ".join(agent.ctx.guard.display(p) for p in paths)
+                out.print(f"[yellow]undid {label!r}:[/yellow] {names}")
+                out.print("[dim]changes made by bash commands are not tracked[/dim]")
+            continue
         result = await agent.run(text)
         save()
         out.print()
