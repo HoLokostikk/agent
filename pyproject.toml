@@ -54,6 +54,10 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "N", "S", "PT", "ASYNC", "RUF"]
 # S607: git and docker are resolved from PATH on purpose.
 ignore = ["RUF001", "RUF002", "RUF003", "S607"]
 
+[tool.ruff.lint.isort]
+# tests/mcp/ would otherwise make ruff treat the third-party `mcp` package as first-party.
+known-third-party = ["mcp"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S311", "S603"]
 
