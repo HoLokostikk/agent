@@ -9,15 +9,15 @@ import openai
 
 
 class ErrorKind(StrEnum):
-    RATE_LIMIT = "rate_limit"  # 429
-    SERVER = "server"  # 5xx
-    CONFLICT = "conflict"  # 409, transient lock on the provider side
-    TIMEOUT = "timeout"  # connect/read timeout, 408, or the total deadline
-    CONNECTION = "connection"  # DNS, refused, reset
-    BAD_REQUEST = "bad_request"  # 400, 422: the request itself is wrong
-    AUTH = "auth"  # 401, 403
-    NOT_FOUND = "not_found"  # 404: wrong model id or base URL
-    STREAM_INTERRUPTED = "stream_interrupted"  # failed after tokens were emitted
+    RATE_LIMIT = "rate_limit"
+    SERVER = "server"
+    CONFLICT = "conflict"
+    TIMEOUT = "timeout"
+    CONNECTION = "connection"
+    BAD_REQUEST = "bad_request"
+    AUTH = "auth"
+    NOT_FOUND = "not_found"
+    STREAM_INTERRUPTED = "stream_interrupted"
     UNKNOWN = "unknown"
 
 
@@ -100,7 +100,6 @@ def classify(exc: BaseException) -> LLMError:
     """Map an SDK or transport exception onto an :class:`LLMError`."""
     if isinstance(exc, LLMError):
         return exc
-    # APITimeoutError subclasses APIConnectionError, so it must come first.
     if isinstance(exc, openai.APITimeoutError | httpx2.TimeoutException):
         return LLMError(ErrorKind.TIMEOUT, "request timed out")
     if isinstance(exc, openai.APIConnectionError | httpx2.TransportError):

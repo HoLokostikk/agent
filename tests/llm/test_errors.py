@@ -36,7 +36,6 @@ def test_status_classification(status: int, kind: ErrorKind, retryable: bool) ->
 
 
 def test_timeout_wins_over_connection() -> None:
-    # APITimeoutError subclasses APIConnectionError.
     assert classify(openai.APITimeoutError(request=REQUEST)).kind is ErrorKind.TIMEOUT
     assert classify(openai.APIConnectionError(request=REQUEST)).kind is ErrorKind.CONNECTION
 

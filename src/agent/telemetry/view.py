@@ -145,7 +145,6 @@ def stats(path: Path) -> dict[str, Any]:
         "runs": sum(stop_reasons.values()),
         "stop_reasons": dict(stop_reasons),
         "cost_per_run_usd": sum(run_costs) / len(run_costs) if run_costs else None,
-        # "completed" is the agent's own claim; tests decide success in evals.
         "cost_per_completed_run_usd": sum(run_costs) / completed if completed else None,
         "tools": {
             name: {"calls": n, "failure_rate": tool_failures[name] / n}

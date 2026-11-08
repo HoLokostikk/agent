@@ -22,9 +22,9 @@ from agent.tools.paths import PathGuard
 
 
 class ToolKind(StrEnum):
-    READ = "read"  # no side effects
-    WRITE = "write"  # changes files in the workspace
-    EXEC = "exec"  # runs a command in the sandbox
+    READ = "read"
+    WRITE = "write"
+    EXEC = "exec"
 
 
 class ToolArgs(BaseModel):

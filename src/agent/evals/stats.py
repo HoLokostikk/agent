@@ -12,7 +12,6 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from math import comb
 
-# task id -> outcomes of its n runs (True = passed)
 Outcomes = Mapping[str, Sequence[bool]]
 
 
@@ -77,11 +76,10 @@ def bootstrap_ci(
 ) -> Interval:
     """Percentile bootstrap over tasks."""
     tasks = sorted(outcomes)
-    rng = random.Random(seed)  # noqa: S311  (resampling, not crypto)
+    rng = random.Random(seed)  # noqa: S311
     stats = []
     for _ in range(resamples):
         sample = [tasks[rng.randrange(len(tasks))] for _ in tasks]
-        # Keys must stay distinct when the same task is drawn twice.
         stats.append(metric({f"{i}:{t}": outcomes[t] for i, t in enumerate(sample)}))
     stats.sort()
     alpha = (1 - confidence) / 2
@@ -110,7 +108,7 @@ def paired_bootstrap_diff(
     tasks = sorted(set(baseline) & set(candidate))
     if not tasks:
         raise ValueError("baseline and candidate share no tasks")
-    rng = random.Random(seed)  # noqa: S311  (resampling, not crypto)
+    rng = random.Random(seed)  # noqa: S311
     diffs = []
     for _ in range(resamples):
         sample = [tasks[rng.randrange(len(tasks))] for _ in tasks]
@@ -134,7 +132,7 @@ def bootstrap_mean(
     """Percentile bootstrap CI of a mean of per-case scores (e.g. recall@10)."""
     if not values:
         raise ValueError("no values")
-    rng = random.Random(seed)  # noqa: S311  (resampling, not crypto)
+    rng = random.Random(seed)  # noqa: S311
     n = len(values)
     means = sorted(sum(values[rng.randrange(n)] for _ in range(n)) / n for _ in range(resamples))
     alpha = (1 - confidence) / 2

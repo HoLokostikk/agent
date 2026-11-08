@@ -111,7 +111,6 @@ async def run_bench(
     max_tokens: int,
     shared_prefix: str = "",
 ) -> list[LevelResult]:
-    # One warm-up call so the first level does not pay model load time.
     await client.complete([{"role": "user", "content": "warm up"}], max_tokens=1)
     return [
         await run_level(client, c, max(requests_per_level, c), max_tokens, shared_prefix)

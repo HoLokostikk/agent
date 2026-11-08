@@ -25,7 +25,6 @@ class PathGuard:
     def resolve(self, path: str) -> Path:
         if "\x00" in path:
             raise PathError("invalid path")
-        # Models often send "" for "here"; treat it as the root instead of failing.
         path = path.strip() or "."
         candidate = PurePosixPath(path)
         if candidate.is_absolute():

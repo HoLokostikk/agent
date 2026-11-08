@@ -41,7 +41,7 @@ class ServerConfig(BaseModel):
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
     kind: Literal["read", "write", "exec"] = "exec"
-    allow: list[str] | None = None  # None: every tool the server offers
+    allow: list[str] | None = None
     timeout_s: float = Field(default=30.0, gt=0)
 
 
@@ -87,7 +87,6 @@ class PinStore:
 
 
 class MCPArgs(BaseModel):
-    # The server owns the schema and validates; we pass arguments through.
     model_config = ConfigDict(extra="allow")
 
 
@@ -99,7 +98,7 @@ UNTRUSTED = (
 
 
 class MCPTool(Tool):
-    description: ClassVar[str] = ""  # per-instance, see __init__
+    description: ClassVar[str] = ""
     Args: ClassVar[type[ToolArgs]] = MCPArgs  # type: ignore[assignment]
 
     def __init__(

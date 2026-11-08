@@ -13,7 +13,7 @@ from agent.rag.bm25 import BM25
 from agent.rag.chunker import Chunk
 from agent.rag.embed import Embedder, Vectors
 
-RRF_K = 60  # Cormack et al. 2009; insensitive in practice
+RRF_K = 60
 CANDIDATES = 50
 
 
@@ -64,7 +64,6 @@ class Searcher:
         reranker: Reranker | None = None,
     ) -> None:
         self.chunks = list(chunks)
-        # Path and symbol are part of what BM25 sees: queries often name them.
         self.bm25 = BM25([f"{c.path} {c.symbol}\n{c.text}" for c in self.chunks])
         self.vectors = vectors
         self.embedder = embedder

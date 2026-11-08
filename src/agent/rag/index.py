@@ -94,8 +94,6 @@ class CodeIndex:
 
     async def update(self, embedder: Embedder | None = None) -> UpdateStats:
         if embedder is not None and self._meta("embedder") != embedder.name:
-            # No vectors yet, or a different model whose vectors live in another
-            # space: re-embed everything.
             self.db.execute("DELETE FROM files")
             self.db.execute("DELETE FROM chunks")
         known = dict(self.db.execute("SELECT path, hash FROM files").fetchall())

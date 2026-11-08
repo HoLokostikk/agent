@@ -1,13 +1,5 @@
-# LiteLLM gateway: stable aliases in front of changing deployments.
-#   litellm --config serving/litellm/config.yaml --port 4000
-# The agent then uses base_url http://127.0.0.1:4000/v1 with model "agent-main".
-#
-# Release process (docs/RUNBOOK.md): a new adapter is served next to the old one,
-# evaluated (shadow), then "agent-main" is pointed at it. Rollback = point the
-# alias back and reload the gateway; no code deploy.
-
 model_list:
-  - model_name: agent-main            # what the agent calls; switch this to roll out / back
+  - model_name: agent-main
     litellm_params:
       model: openai/ft-v1
       api_base: http://127.0.0.1:8000/v1
@@ -30,7 +22,6 @@ model_list:
 router_settings:
   num_retries: 2
   timeout: 300
-  # Fallback chain: fine-tune -> base on the same GPU -> hosted API -> local small model.
   fallbacks:
     - agent-main: [agent-base, agent-hosted, agent-local]
   allowed_fails: 3
@@ -38,5 +29,5 @@ router_settings:
 
 litellm_settings:
   drop_params: true
-  max_budget: 20          # USD, gateway-wide guard for the hosted fallback
+  max_budget: 20
   budget_duration: 30d

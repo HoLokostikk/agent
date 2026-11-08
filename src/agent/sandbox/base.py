@@ -14,12 +14,12 @@ class SandboxError(Exception):
 @dataclass(frozen=True, slots=True)
 class ExecResult:
     exit_code: int
-    output: str  # stdout and stderr interleaved, as a terminal would show
+    output: str
     timed_out: bool = False
 
 
 class Sandbox(Protocol):
-    root: Path  # host path of the workspace
-    workdir: str  # the same directory as seen by commands inside the sandbox
+    root: Path
+    workdir: str
 
     async def exec(self, command: str, timeout_s: float) -> ExecResult: ...

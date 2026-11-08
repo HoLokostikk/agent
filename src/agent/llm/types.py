@@ -17,17 +17,14 @@ from agent.llm.config import Pricing
 class ToolCall:
     id: str
     name: str
-    # Raw JSON text exactly as the model produced it. Parsing and validation
-    # belong to the tool layer, which reports bad JSON back to the model.
     arguments: str
 
 
 @dataclass(frozen=True, slots=True)
 class Usage:
     input_tokens: int
-    output_tokens: int  # includes reasoning tokens, as in the OpenAI API
+    output_tokens: int
     cached_input_tokens: int = 0
-    # ``None`` when the server does not report it (Ollama never does).
     reasoning_tokens: int | None = None
 
 

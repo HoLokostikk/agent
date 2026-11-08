@@ -56,7 +56,6 @@ async def test_generate_tasks_keeps_only_detected_mutants(tmp_path: Path) -> Non
         text = (path / "src" / "m.py").read_text()
         if text == original:
             return ExecResult(0, "passed")
-        # Pretend the suite only covers clamp(): mutations in total() survive.
         changed = [
             i
             for i, (a, b) in enumerate(zip(original.splitlines(), text.splitlines(), strict=True))

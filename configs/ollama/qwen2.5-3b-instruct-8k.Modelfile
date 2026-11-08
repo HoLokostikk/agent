@@ -1,16 +1,3 @@
-# qwen2.5:3b-instruct-q4_K_M with two changes:
-# 1. num_ctx 8192: Ollama serves 4096 by default and the OpenAI-compatible
-#    endpoint cannot change it per request.
-# 2. TEMPLATE: the stock Ollama template renders an assistant turn as EITHER
-#    its text OR its tool calls. A turn with both ("I will read x" + read_file)
-#    loses the call from history, and the model then imitates text-only turns
-#    and stops calling tools. This renders both, as the official Qwen2.5 chat
-#    template on Hugging Face does. Keep "<tool_call>" right before
-#    "range .ToolCalls": Ollama finds the tool-call syntax by parsing the
-#    template, and moving the tag inside the range makes it stop parsing
-#    tool calls at all (they then arrive as plain text).
-#
-# Build: ollama create qwen2.5-3b-instruct-8k -f configs/ollama/qwen2.5-3b-instruct-8k.Modelfile
 FROM qwen2.5:3b-instruct-q4_K_M
 PARAMETER num_ctx 8192
 TEMPLATE """{{- if .Messages }}

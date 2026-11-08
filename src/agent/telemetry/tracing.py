@@ -39,7 +39,7 @@ class Exporter(StrEnum):
     NONE = "none"
     FILE = "file"
     CONSOLE = "console"
-    OTLP = "otlp"  # endpoint from OTEL_EXPORTER_OTLP_ENDPOINT, e.g. Phoenix
+    OTLP = "otlp"
 
 
 def tracer() -> trace.Tracer:

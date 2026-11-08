@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Run ON THE GPU POD. Serves the pinned model with vLLM on 127.0.0.1:8000.
-#
-#   bash gpu/pod_serve.sh                                        # base model
-#   LORA="ft-v1=training/runs/qwen27b-r16/adapter" bash gpu/pod_serve.sh
-#   PREFIX_CACHING=0 bash gpu/pod_serve.sh                       # caching ablation
-#   QUANTIZATION=fp8 bash gpu/pod_serve.sh                       # 48 GB cards
-#
-# Tool calling: Qwen models emit Hermes-style <tool_call> blocks (vLLM parser
-# "hermes"); the reasoning parser splits thinking from content. Flag names
-# change between vLLM releases: check `vllm serve --help` if one is rejected.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

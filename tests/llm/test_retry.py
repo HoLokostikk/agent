@@ -14,7 +14,6 @@ def test_full_jitter_stays_under_capped_ceiling(attempt: int, ceiling: float) ->
     delays = [backoff_delay(attempt, POLICY, rng) for _ in range(500)]
 
     assert all(0 <= d <= ceiling for d in delays)
-    # Jitter actually spreads: not all clients wait the same time.
     assert max(delays) - min(delays) > ceiling * 0.5
 
 

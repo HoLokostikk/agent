@@ -20,7 +20,7 @@ Vectors = npt.NDArray[np.float32]
 
 
 class Embedder(Protocol):
-    name: str  # alias@revision, stored with the index so stale vectors are detected
+    name: str
 
     async def embed(self, texts: Sequence[str]) -> Vectors: ...
 
@@ -47,7 +47,7 @@ class OpenAIEmbedder:
             ),
             max_retries=0,
         )
-        self._rng = random.Random()  # noqa: S311  (jitter)
+        self._rng = random.Random()  # noqa: S311
 
     async def _batch(self, texts: list[str]) -> list[list[float]]:
         policy = self.config.retry
@@ -68,7 +68,6 @@ class OpenAIEmbedder:
     async def embed(self, texts: Sequence[str]) -> Vectors:
         rows: list[list[float]] = []
         for start in range(0, len(texts), self.batch_size):
-            # Long chunks are clipped: embedding models have small input windows.
             batch = [t[:6000] for t in texts[start : start + self.batch_size]]
             rows.extend(await self._batch(batch))
         if not rows:

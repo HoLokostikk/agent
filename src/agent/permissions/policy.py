@@ -24,7 +24,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from agent.tools.base import Tool, ToolArgs, ToolContext, ToolKind
 from agent.tools.paths import PathError
 
-# Anything that lets one command smuggle in another, or redirect into a file.
 _SHELL_META = re.compile(r"[;&|`<>\n]|\$\(")
 
 
@@ -123,13 +122,11 @@ class PermissionPolicy:
         try:
             rel = ctx.guard.display(ctx.guard.resolve(raw))
         except PathError:
-            return None  # the tool itself reports the bad path
+            return None
         for pattern in self.rules.write_deny:
             if fnmatch.fnmatchcase(rel, pattern):
                 return f"writes to {rel} are not allowed (rule {pattern!r})"
         return None
 
 
-# Shown the tool, its validated arguments and a preview (diff or command);
-# returns True to run it.
 Approver = Callable[[Tool, Any, str | None], Awaitable[bool]]

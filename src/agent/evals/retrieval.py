@@ -32,7 +32,6 @@ class RetrievalCase:
 
 
 def _git(repo: Path, *args: str) -> str:
-    # Fixed argv, no shell: arguments are ours, not the model's.
     cmd = ["git", *args]
     return subprocess.run(cmd, cwd=repo, capture_output=True, text=True, check=True).stdout  # noqa: S603
 

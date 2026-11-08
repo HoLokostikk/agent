@@ -81,7 +81,6 @@ async def test_fixes_a_bug_end_to_end(workspace: Path) -> None:
         "edit_file",
         "bash",
     ]
-    # Each tool result is sent back paired with its call id.
     assert [m.get("tool_call_id") for m in llm.seen[-1] if m["role"] == "tool"] == [
         "call_read_file",
         "call_edit_file",
@@ -327,7 +326,6 @@ async def test_empty_reply_gets_a_nudge_not_a_completion(workspace: Path) -> Non
     sent = llm.seen[-1]
     assert sent[-1]["role"] == "user"
     assert "last reply was empty" in str(sent[-1]["content"])
-    # The empty assistant turn itself is not echoed back.
     assert [m["role"] for m in sent] == ["system", "user", "user"]
 
 

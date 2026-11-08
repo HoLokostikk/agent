@@ -1,6 +1,6 @@
 from shop.pricing import apply_discount
 
-MEMBER_DISCOUNT = 10  # ten percent off for members
+MEMBER_DISCOUNT = 10
 
 
 def checkout(prices: list[float], member: bool = False) -> float:

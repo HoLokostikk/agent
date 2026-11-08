@@ -69,7 +69,6 @@ def test_only_assistant_tokens_are_trained() -> None:
 def test_non_prefix_stable_template_is_rejected() -> None:
     class Dropping(CharTokenizer):
         def render(self, messages: Sequence[dict[str, Any]]) -> str:
-            # Re-renders history differently once a tool message appears.
             text = super().render(messages)
             return (
                 text.replace("<user>", "<USER>")

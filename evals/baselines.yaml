@@ -1,18 +1,9 @@
-# Results files the eval gate compares against, per model alias.
-# A baseline is only meaningful for the same model, revision and task set.
-#
-# max_drop: allowed pass@1 drop before the gate fails. Placeholder values:
-# they must be replaced by ~2x the run-to-run spread measured by repeating
-# the baseline (see EXPERIMENTS.md, phase 3). With 12 tasks one task is 8.3
-# percentage points, so anything tighter than that is noise by construction.
 max_drop:
-  # local-small, 3 repeats on 2026-11-07: 73.3%, 73.3%, 76.7% (range 3.3 pp).
-  # ~2x the range, so one unlucky repeat does not fail the gate.
   toolcalls: 0.07
-  tasks: 0.17   # placeholder until the golden-set baseline is repeated
+  tasks: 0.17
 
 local-small:
   toolcalls: evals/results/2026-11-07T2216_toolcalls_local-small_system.v1.json
   tasks: evals/results/2026-11-08T0907_tasks_local-small_system.v1.json
 
-qwen27b-hosted: {}     # needs OPENROUTER_API_KEY; the CI gate skips until set
+qwen27b-hosted: {}

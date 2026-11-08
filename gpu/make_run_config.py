@@ -21,7 +21,7 @@ if __name__ == "__main__":
     fraction = float(os.environ.get("FRACTION", "1"))
     if fraction < 1:
         rows = Path(cfg["train_file"]).read_text().splitlines()
-        random.Random(0).shuffle(rows)  # noqa: S311  (sampling, not crypto)
+        random.Random(0).shuffle(rows)  # noqa: S311
         subset = f"training/runs/{run}-train.jsonl"
         with open(subset, "w") as fh:
             fh.write("\n".join(rows[: max(1, int(len(rows) * fraction))]) + "\n")

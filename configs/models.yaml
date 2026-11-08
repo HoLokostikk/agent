@@ -1,22 +1,10 @@
-# Model registry: alias -> endpoint, pinned revision, context window, prices.
-#
-# Every entry is pinned to an immutable revision. A moving alias (an Ollama
-# tag, an unversioned provider id) makes every eval number unreproducible.
-# Prices are USD per 1M tokens.
-
 models:
   local-small:
     base_url: http://localhost:11434/v1
-    # qwen2.5:3b-instruct-q4_K_M with num_ctx 8192 and a fixed tool-call template
-    # (configs/ollama/qwen2.5-3b-instruct-8k.Modelfile). Ollama serves 4096
-    # by default and the OpenAI-compatible endpoint cannot change it per
-    # request; longer prompts would be truncated silently.
     model: qwen2.5-3b-instruct-8k
-    # Ollama tags move; the digest from /api/tags does not.
     revision: sha256:155251c4b20a9a96f844f6ed01e45338b06fe4ad5c456660b58eee40d7dd7cea
     context_window: 8192
     pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
-    # Qwen2.5 instruct recommended sampling.
     sampling: {temperature: 0.7, top_p: 0.8, top_k: 20}
 
   local-tiny:
@@ -30,14 +18,10 @@ models:
   qwen27b-hosted:
     base_url: https://openrouter.ai/api/v1
     model: qwen/qwen3.8-27b-20260814
-    # Dated provider snapshot. The Hugging Face commit is not verified yet,
-    # see docs/status.md.
     revision: qwen/qwen3.8-27b-20260814
     context_window: 262144
     api_key_env: OPENROUTER_API_KEY
-    # Unverified: taken from one provider listing, see docs/status.md.
     pricing: {input_per_mtok: 0.58, output_per_mtok: 3.45}
-    # Thinking-mode recommendation (thinking is on by default for this model).
     sampling: {temperature: 1.0, top_p: 0.95, top_k: 20}
     timeouts: {connect_s: 10.0, read_s: 120.0, total_s: 600.0}
 
@@ -49,15 +33,12 @@ models:
     context_window: 2048
     pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
 
-  # Self-hosted on a rented GPU (gpu/pod_serve.sh), reached through an SSH
-  # tunnel. gpu/laptop_measure.sh replaces the placeholder with the commit sha
-  # pinned on the pod and refuses to run if they differ.
   qwen27b-vllm:
     base_url: http://127.0.0.1:8000/v1
     model: qwen27b
     revision: UNPINNED-qwen27b-vllm
     context_window: 32768
-    pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}   # cost = GPU hours, see gpu/README.md
+    pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
     sampling: {temperature: 1.0, top_p: 0.95, top_k: 20}
     timeouts: {connect_s: 10.0, read_s: 300.0, total_s: 900.0}
 

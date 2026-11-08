@@ -41,8 +41,6 @@ OnDelta = Callable[[DeltaKind, str], None]
 Sleep = Callable[[float], Awaitable[None]]
 Clock = Callable[[], float]
 
-# Field names servers use for streamed reasoning: vLLM and Ollama's thinking
-# models use ``reasoning_content``, OpenRouter uses ``reasoning``.
 _REASONING_FIELDS = ("reasoning_content", "reasoning")
 
 
@@ -119,7 +117,7 @@ class LLMClient:
     ) -> None:
         self.config = config
         self._sleep = sleep
-        self._rng = rng or random.Random()  # noqa: S311  (jitter, not crypto)
+        self._rng = rng or random.Random()  # noqa: S311
         self._clock = clock
         t = config.timeouts
         self._client = AsyncOpenAI(
@@ -357,7 +355,6 @@ class LLMClient:
             usage=usage,
             cost_usd=compute_cost(usage, self.config.pricing) if usage is not None else None,
         )
-        # Metrics only: message content never goes to logs.
         logger.info("llm_call %s", json.dumps(metrics.as_log_record()))
         if usage is None:
             logger.warning("llm_call %s: server sent no usage; cost unknown", self.config.alias)

@@ -14,7 +14,6 @@ def test_repo_registry_loads_and_every_model_is_pinned() -> None:
     for alias, model in models.items():
         assert model.alias == alias
         assert model.revision.strip()
-        # Ollama tags move; local models must be pinned by digest.
         if "localhost:11434" in model.base_url:
             assert model.revision.startswith("sha256:")
 

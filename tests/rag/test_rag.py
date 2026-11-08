@@ -50,7 +50,7 @@ def test_python_chunks_follow_definitions() -> None:
     symbols = {c.symbol: (c.start_line, c.end_line) for c in chunks}
     assert symbols["func parse_config"] == (7, 8)
     assert symbols["class Loader"] == (11, 13)
-    assert "module" in symbols  # imports and constants are searchable too
+    assert "module" in symbols
 
 
 def test_large_classes_are_split_by_method() -> None:

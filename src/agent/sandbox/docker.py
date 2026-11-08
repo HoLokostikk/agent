@@ -95,7 +95,7 @@ class DockerSandbox:
             "no-new-privileges",
             "--read-only",
             "--tmpfs",
-            f"/tmp:rw,nosuid,nodev,size={lim.tmpfs_size}",  # noqa: S108  (inside the container)
+            f"/tmp:rw,nosuid,nodev,size={lim.tmpfs_size}",  # noqa: S108
             "--memory",
             lim.memory,
             "--memory-swap",
@@ -147,8 +147,6 @@ class DockerSandbox:
     async def exec(self, command: str, timeout_s: float) -> ExecResult:
         if not self._started:
             raise SandboxError("sandbox is not running")
-        # coreutils `timeout` kills the command inside the container; the host
-        # side deadline is a backstop in case docker itself hangs.
         inner = f"timeout --kill-after=5 {timeout_s:g} bash -c {shlex.quote(command)}"
         proc = await asyncio.create_subprocess_exec(
             "docker",

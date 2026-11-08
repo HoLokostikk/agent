@@ -9,7 +9,6 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-# Ollama and vLLM ignore the key, but the openai SDK refuses an empty one.
 _LOCAL_API_KEY = "not-needed"
 
 
@@ -26,7 +25,6 @@ class Pricing(_Strict):
 
     input_per_mtok: float = Field(ge=0)
     output_per_mtok: float = Field(ge=0)
-    # Providers that discount cached prefixes; ``None`` means "same as input".
     cached_input_per_mtok: float | None = Field(default=None, ge=0)
 
 
@@ -34,7 +32,6 @@ class Sampling(_Strict):
     temperature: float | None = Field(default=None, ge=0)
     top_p: float | None = Field(default=None, gt=0, le=1)
     presence_penalty: float | None = None
-    # Not part of the OpenAI API; sent through ``extra_body``.
     top_k: int | None = Field(default=None, gt=0)
 
 

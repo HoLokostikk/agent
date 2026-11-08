@@ -23,7 +23,6 @@ from agent.tools import PathGuard, Tool, ToolContext, ToolRegistry, default_tool
 from agent.tools.checkpoint import CheckpointStack
 from agent.tools.todo import TodoWrite
 
-# Below this window the extra tool schemas cost more than they help.
 EXTENDED_TOOLS_MIN_CONTEXT = 32_768
 
 
@@ -35,8 +34,8 @@ class AgentSpec:
     mode: Mode
     budget: Budget
     compaction: bool = True
-    extended_tools: bool | None = None  # None: decide by the context window
-    searcher: Searcher | None = None  # adds search_code when set
+    extended_tools: bool | None = None
+    searcher: Searcher | None = None
 
 
 def build_tools(

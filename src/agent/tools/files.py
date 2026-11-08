@@ -30,7 +30,6 @@ IGNORED_DIRS = frozenset(
         "build",
     }
 )
-# Files whose content must never reach the model (and so the provider's logs).
 SECRET_PATTERNS = (
     ".env",
     ".env.*",
@@ -62,7 +61,6 @@ def _is_binary(path: Path) -> bool:
 
 
 def _read_text(path: Path) -> str:
-    # newline="" keeps \r\n intact, so an edit does not rewrite every line ending.
     with path.open(encoding="utf-8", errors="replace", newline="") as fh:
         return fh.read()
 
@@ -113,9 +111,6 @@ def _diff(path_label: str, before: str, after: str) -> str:
     return "".join(diff) or "(no changes)"
 
 
-# --- read_file -----------------------------------------------------------------
-
-
 class ReadFileArgs(ToolArgs):
     path: str = Field(description="File path relative to the workspace root.")
     offset: int = Field(default=1, ge=1, description="First line to show, 1-based.")
@@ -150,9 +145,6 @@ class ReadFile(Tool):
         return ToolResult(True, f"{header}\n{body}")
 
 
-# --- list_dir ------------------------------------------------------------------
-
-
 class ListDirArgs(ToolArgs):
     path: str = Field(default=".", description="Directory relative to the workspace root.")
 
@@ -178,9 +170,6 @@ class ListDir(Tool):
         if not entries:
             return ToolResult(True, f"{args.path} is empty")
         return ToolResult(True, head_tail("\n".join(entries), max_lines=200))
-
-
-# --- glob ----------------------------------------------------------------------
 
 
 class GlobArgs(ToolArgs):
@@ -212,9 +201,6 @@ class Glob(Tool):
         extra = len(matches) - len(shown)
         tail = f"\n[... {extra} more]" if extra else ""
         return ToolResult(True, "\n".join(shown) + tail)
-
-
-# --- grep ----------------------------------------------------------------------
 
 
 class GrepArgs(ToolArgs):
@@ -262,9 +248,6 @@ class Grep(Tool):
             return ToolResult(True, f"no matches for {args.pattern!r}")
         extra = f"\n[... {total - len(matches)} more matches]" if total > len(matches) else ""
         return ToolResult(True, "\n".join(matches) + extra)
-
-
-# --- edit_file -----------------------------------------------------------------
 
 
 class EditFileArgs(ToolArgs):
@@ -327,9 +310,6 @@ class EditFile(Tool):
         hi = min(len(new_lines), start + changed + 1)
         snippet = _numbered(new_lines[lo - 1 : hi], lo)
         return ToolResult(True, f"edited {ctx.guard.display(path)}:\n{snippet}")
-
-
-# --- write_file ----------------------------------------------------------------
 
 
 class WriteFileArgs(ToolArgs):

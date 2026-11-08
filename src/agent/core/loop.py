@@ -60,14 +60,11 @@ class StopReason(StrEnum):
 @dataclass(frozen=True, slots=True)
 class Budget:
     max_turns: int = 30
-    max_total_tokens: int = 1_000_000  # input + output, summed over turns
+    max_total_tokens: int = 1_000_000
     max_cost_usd: float = 1.0
     max_wall_s: float = 1800.0
-    # Stop before the server starts truncating the prompt (Ollama does it silently).
     max_context_fraction: float = 0.9
-    repeat_limit: int = 3  # identical consecutive tool calls that count as a loop
-    # Replies with neither text nor tool calls (e.g. a tool call the server
-    # failed to parse and dropped) get a nudge instead of ending the run.
+    repeat_limit: int = 3
     max_empty_nudges: int = 2
     max_tool_output_chars: int = 6000
 
@@ -77,7 +74,7 @@ class ToolCallRecord:
     id: str
     name: str
     arguments: str
-    verdict: str  # allow | approved | rejected | deny | invalid
+    verdict: str
     ok: bool
     output: str
     duration_s: float
@@ -295,8 +292,6 @@ class Agent:
             self._last_input_tokens = completion.metrics.usage.input_tokens
         empty = not completion.tool_calls and not completion.content.strip()
         if not empty:
-            # An assistant message with neither content nor tool calls is
-            # invalid for several servers, so an empty reply is not echoed.
             self.messages.append(completion.to_message())
         turn = TurnRecord(
             turn=stats.turns,
@@ -354,7 +349,7 @@ class Agent:
                 compacted = await self.compactor.compact(self.messages, self._task_index)
             except LLMError as exc:
                 set_attributes(span, {"error.type": exc.kind.value})
-                return  # the context guard stops the run if it really fills up
+                return
             if compacted is None:
                 return
             self.messages = compacted
@@ -394,7 +389,6 @@ class Agent:
                 "agent.tool.output_chars": len(record.output),
             }
             if call.name == "bash":
-                # The action itself is worth auditing; it is redacted like everything else.
                 try:
                     command = json.loads(call.arguments).get("command")
                 except (json.JSONDecodeError, AttributeError):
@@ -464,7 +458,7 @@ class Agent:
 
         try:
             result = await tool.run(args, self.ctx)
-        except Exception as exc:  # a tool bug must not kill the session
+        except Exception as exc:
             result = ToolResult(False, f"tool {call.name} crashed: {type(exc).__name__}: {exc}")
         if not result.ok:
             stats.tool_errors[call.name] += 1

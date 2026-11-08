@@ -10,13 +10,12 @@ from __future__ import annotations
 
 import re
 
-# CSI ... final byte, OSC ... BEL/ST, other ESC sequences, then C0/C1 controls.
 _ESCAPES = re.compile(
-    r"\x1b\[[0-?]*[ -/]*[@-~]"  # CSI
-    r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"  # OSC
-    r"|\x1b[PX^_][^\x1b]*\x1b\\"  # DCS, SOS, PM, APC
-    r"|\x1b[@-Z\\-_]"  # two-byte escapes
-    r"|\x9b[0-?]*[ -/]*[@-~]"  # 8-bit CSI
+    r"\x1b\[[0-?]*[ -/]*[@-~]"
+    r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"
+    r"|\x1b[PX^_][^\x1b]*\x1b\\"
+    r"|\x1b[@-Z\\-_]"
+    r"|\x9b[0-?]*[ -/]*[@-~]"
 )
 _CONTROLS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 

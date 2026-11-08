@@ -1,5 +1,3 @@
-# Rehearsal on a small model (free Kaggle/Colab GPU): catches template and
-# masking bugs cheaply before the 27B run. Same pipeline, same data format.
 model: Qwen/Qwen2.5-3B-Instruct
 revision: UNPINNED
 train_file: training/data/out/sft_train.jsonl

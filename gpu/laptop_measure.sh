@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Run ON THE LAPTOP while an SSH tunnel forwards the pod's vLLM to 127.0.0.1:8000:
-#
-#   ssh -N -L 8000:127.0.0.1:8000 -p <port> root@<pod-ip> &
-#   export POD_SSH="-p <port> root@<pod-ip>"
-#   bash gpu/laptop_measure.sh baseline
-#
-# Steps, in order (each appends to gpu/measure.log):
-#   baseline       tool-call eval x3 (spread for the gate) + golden set k=3
-#   bench          serving benchmark with prefix caching on
-#   bench-nocache  same after restarting vLLM with PREFIX_CACHING=0
-#   tasks          training tasks by mutation from cloned open-source repos
-#   collect        teacher trajectories -> training/data/out (copy to the pod)
-#   sft-eval       after serving with LORA="ft-v1=...": the same evals on ft-v1
-#   compare        paired bootstrap, base vs ft-v1
-#
-# The agent, its Docker sandbox and the evals run here; the pod only serves
-# the model and trains. Base and fine-tuned are measured by the same harness.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

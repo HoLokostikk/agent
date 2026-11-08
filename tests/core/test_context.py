@@ -64,7 +64,6 @@ async def test_compaction_keeps_system_task_summary_and_tail() -> None:
     assert str(compacted[2]["content"]).startswith(SUMMARY_HEADER)
     assert compacted[3]["role"] == "assistant"
     assert compacted[-1]["role"] == "tool"
-    # The summariser saw the dropped turns, not the system prompt.
     sent = str(summarizer.seen[0][1]["content"])
     assert "list_dir" in sent
     assert "sys" not in sent.split("[")[0]
@@ -209,5 +208,4 @@ async def test_explorer_runs_in_its_own_context(tmp_path: Path) -> None:
     output = result.turns[0].tool_calls[0].output
     assert output.startswith("login is defined in auth.py:1")
     assert "[explorer: 2 turns, 1 tool calls, completed]" in output
-    # The grep output never entered the main conversation.
     assert all("def login" not in str(m.get("content")) for m in agent.messages)

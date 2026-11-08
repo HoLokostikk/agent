@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
-# Run ON THE GPU POD, once. Installs vLLM and training deps, resolves the exact
-# model revision and downloads the weights at that revision.
-#
-#   MODEL_ID=Qwen/Qwen3.8-27B bash gpu/pod_setup.sh
-#
-# Writes gpu/PINNED_REVISION: every later step reads it, so baseline, data
-# generation, training and the fine-tuned eval all use the same weights.
 set -euo pipefail
 
 MODEL_ID="${MODEL_ID:-Qwen/Qwen3.8-27B}"
-VLLM_VERSION="${VLLM_VERSION:-}"   # empty: latest; the installed version is recorded below
+VLLM_VERSION="${VLLM_VERSION:-}"
 cd "$(dirname "$0")/.."
 
 python3 -m pip install --upgrade pip

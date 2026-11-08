@@ -68,10 +68,7 @@ class Output(StrEnum):
 
 class SandboxKind(StrEnum):
     DOCKER = "docker"
-    NONE = "none"  # bash disabled; file tools still work
-
-
-# --- factories (replaced in tests) -------------------------------------------
+    NONE = "none"
 
 
 def make_client(config: ModelConfig) -> LLMClient:
@@ -89,9 +86,6 @@ async def make_sandbox(root: Path, kind: SandboxKind) -> AsyncIterator[Sandbox |
         await build_image(sandbox.image)
     async with sandbox:
         yield sandbox
-
-
-# --- formatting ----------------------------------------------------------------
 
 
 def format_metrics(m: CallMetrics) -> str:
@@ -216,9 +210,6 @@ class ConsoleApprover:
         return choice in {"y", "yes"}
 
 
-# --- agent session -------------------------------------------------------------
-
-
 def _result_json(
     result: RunResult, agent: Agent, model: ModelConfig, prompt_version: str, mode: Mode, root: Path
 ) -> dict[str, Any]:
@@ -280,7 +271,6 @@ async def _agent_session(
     else:
         events = ConsoleEvents(out if interactive else err, show_reasoning)
         if not interactive:
-            # Headless text mode: tool activity on stderr, answer on stdout.
             events = _HeadlessTextEvents(err, show_reasoning)
     approver = ConsoleApprover(out) if interactive and mode is Mode.ASK else None
     from agent.mcp.client import MCPConfig, MCPHub, load_mcp_config
@@ -305,7 +295,6 @@ async def _agent_session(
             if resume is not None:
                 meta, history = store.load(resume)
                 session_id = meta["id"]
-                # Keep the current system prompt; replay the rest of the conversation.
                 agent.messages = [agent.messages[0], *history[1:]]
                 err.print(f"[dim]resumed session {session_id} ({len(history) - 1} messages)[/dim]")
             meta_out = {
@@ -392,9 +381,6 @@ async def _repl(
             out.print(f"[red]{result.error}[/red]")
     out.print(f"[dim]session cost ${total:.6f}[/dim]")
     return EXIT_OK
-
-
-# --- commands ------------------------------------------------------------------
 
 
 @app.callback(invoke_without_command=True)
@@ -594,9 +580,6 @@ def sessions_cmd(limit: int = 20) -> None:
     out.print(table)
 
 
-# --- retrieval -------------------------------------------------------------------
-
-
 async def _build_searcher(root: Path, embed_config: ModelConfig | None) -> Searcher:
     from agent.rag.embed import OpenAIEmbedder
     from agent.rag.index import CodeIndex
@@ -727,8 +710,6 @@ def bench_cmd(
     path.with_suffix(".md").write_text(report)
     out.print(report, markup=False)
 
-
-# --- training data -----------------------------------------------------------------
 
 data_app = typer.Typer(no_args_is_help=True, help="Generate tasks and training data.")
 app.add_typer(data_app, name="data")
@@ -878,8 +859,6 @@ def data_collect(
     out.print_json(json.dumps(stats))
 
 
-# --- traces ----------------------------------------------------------------------
-
 trace_app = typer.Typer(no_args_is_help=True, help="Inspect recorded traces.")
 app.add_typer(trace_app, name="trace")
 TraceFileOpt = Annotated[Path, typer.Option("--file", envvar="AGENT_TRACE_FILE")]
@@ -924,8 +903,6 @@ def trace_stats(file: TraceFileOpt = DEFAULT_TRACE_FILE) -> None:
 
     out.print_json(json.dumps(stats(file)))
 
-
-# --- evals -----------------------------------------------------------------------
 
 eval_app = typer.Typer(no_args_is_help=True, help="Run evals and compare results.")
 app.add_typer(eval_app, name="eval")

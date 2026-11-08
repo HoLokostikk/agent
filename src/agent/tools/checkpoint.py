@@ -13,7 +13,7 @@ from pathlib import Path
 @dataclass
 class Checkpoint:
     label: str
-    originals: dict[Path, bytes | None] = field(default_factory=dict)  # None: did not exist
+    originals: dict[Path, bytes | None] = field(default_factory=dict)
 
     def remember(self, path: Path) -> None:
         if path not in self.originals:

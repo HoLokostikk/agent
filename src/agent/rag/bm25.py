@@ -24,7 +24,7 @@ def tokenize(text: str) -> list[str]:
             if len(low) > 1 and low not in _STOP:
                 tokens.append(low)
         if len(parts) > 1 and word.lower() not in _STOP:
-            tokens.append(word.lower())  # the full identifier too, for exact hits
+            tokens.append(word.lower())
     return tokens
 
 

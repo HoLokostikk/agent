@@ -71,7 +71,6 @@ async def test_runner_grades_each_attempt_in_a_fresh_copy() -> None:
     records = await run_suite(TASKS, cfg)
 
     assert [(r.attempt, r.passed) for r in records] == [(1, True), (2, False)]
-    # The task snapshot itself is never modified.
     assert "return a - b" in (TASKS[0].repo / "calc.py").read_text()
     summary = summarize(records, 2)
     assert summary["pass_at_1"]["estimate"] == 0.5

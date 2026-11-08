@@ -97,7 +97,7 @@ async def test_grep_never_reads_secret_files(ctx: ToolContext) -> None:
 
     assert "sk-live-123" not in result.output
     assert ".env:" not in result.output
-    assert ".env.example:1" in result.output  # templates stay searchable
+    assert ".env.example:1" in result.output
 
 
 async def test_grep_bad_regex_is_an_error(ctx: ToolContext) -> None:

@@ -47,7 +47,6 @@ def test_dangerous_commands_are_denied_in_every_mode(
 
 
 def test_ordinary_rm_is_not_caught_by_deny_rules(ctx: ToolContext) -> None:
-    # Deleting a build artefact inside the sandbox is fine; it still asks in ask mode.
     assert bash_verdict(Mode.ASK, "rm -f build/out.txt", ctx) is Verdict.ASK
     assert bash_verdict(Mode.AUTO, "rm -f build/out.txt", ctx) is Verdict.ALLOW
 

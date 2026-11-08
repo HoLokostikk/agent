@@ -65,8 +65,6 @@ def build_example(
     for i, message in enumerate(messages):
         ids = _ids(tokenizer, messages[: i + 1], tools)
         if ids[: len(input_ids)] != input_ids:
-            # The template re-rendered an earlier part (some templates drop old
-            # reasoning, for example). Masking by prefix difference is then wrong.
             raise MaskingError(f"chat template is not prefix-stable at message {i}")
         added = ids[len(input_ids) :]
         input_ids.extend(added)

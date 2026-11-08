@@ -125,7 +125,7 @@ async def generate_tasks(
     prefix: str = "mut",
 ) -> list[Mutation]:
     """Write up to ``n`` verified tasks to ``out/<prefix>-<i>/``."""
-    rng = random.Random(seed)  # noqa: S311  (sampling, not crypto)
+    rng = random.Random(seed)  # noqa: S311
     files = [p for p in sorted(repo.glob(source_glob)) if "test" not in p.name]  # noqa: ASYNC240
     if not files:
         raise ValueError(f"no source files match {source_glob} in {repo}")
@@ -150,7 +150,7 @@ async def generate_tasks(
         (work / rel).write_text(text, encoding="utf-8")
         result = await run_tests(work)
         if result.exit_code == 0:
-            shutil.rmtree(task_dir)  # equivalent mutant or untested line: no oracle
+            shutil.rmtree(task_dir)
             continue
         solution = task_dir / "solution" / rel
         solution.parent.mkdir(parents=True, exist_ok=True)

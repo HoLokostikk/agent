@@ -21,7 +21,6 @@ _EXPORTER = InMemorySpanExporter()
 
 @pytest.fixture(scope="module", autouse=True)
 def _provider() -> None:
-    # The global provider can be set only once per process.
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(_EXPORTER))
     trace.set_tracer_provider(provider)
@@ -90,9 +89,9 @@ async def test_no_message_content_or_secrets_in_spans(
     await run_agent(tmp_path)
 
     dumped = json.dumps([span_record(s) for s in spans.get_finished_spans()], default=str)
-    assert "sk-or-v1" not in dumped  # file content read by the tool
+    assert "sk-or-v1" not in dumped
     assert "x = 1" not in dumped
-    assert '"look"' not in dumped  # the user's task text
+    assert '"look"' not in dumped
 
 
 async def test_jsonl_export_and_views(tmp_path: Path, spans: InMemorySpanExporter) -> None:
@@ -109,7 +108,7 @@ async def test_jsonl_export_and_views(tmp_path: Path, spans: InMemorySpanExporte
     assert recent[0].attributes["agent.stop_reason"] == "completed"
     assert tree.splitlines()[1].startswith("· invoke_agent")
     assert "  · agent.turn" in tree
-    assert "✗ execute_tool bash" in tree  # the denied curl
+    assert "✗ execute_tool bash" in tree
     assert summary["runs"] == 1
     assert summary["tools"]["bash"] == {"calls": 2, "failure_rate": 1.0}
     assert summary["tools"]["read_file"]["failure_rate"] == 0.0

@@ -96,7 +96,7 @@ def match_value(expected: Any, actual: Any) -> bool:
 class CaseResult:
     case_id: str
     attempt: int
-    outcome: str  # correct | wrong_tool | wrong_args | invalid_json | no_call | model_error
+    outcome: str
     tool: str | None
     arguments: str | None
     detail: str = ""

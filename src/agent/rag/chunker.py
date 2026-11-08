@@ -14,10 +14,10 @@ MAX_CHUNK_LINES = 200
 
 @dataclass(frozen=True, slots=True)
 class Chunk:
-    path: str  # workspace-relative, posix
-    start_line: int  # 1-based, inclusive
+    path: str
+    start_line: int
     end_line: int
-    symbol: str  # "module", "func parse_config", "class Cart", "Cart.checkout", "lines 1-60"
+    symbol: str
     text: str
 
     @property
@@ -87,7 +87,6 @@ def _python(path: str, source: str) -> list[Chunk]:
             else:
                 for method in methods:
                     add(method, f"{node.name}.{method.name}")
-    # Module-level code outside functions and classes: imports, constants, scripts.
     rest = [i for i in range(1, len(lines) + 1) if i not in covered and lines[i - 1].strip()]
     if rest:
         text = "\n".join(lines[i - 1] for i in rest[:WINDOW_LINES])

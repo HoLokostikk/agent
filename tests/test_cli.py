@@ -74,9 +74,6 @@ def test_hosted_model_without_key_fails_cleanly(monkeypatch: pytest.MonkeyPatch)
     assert "OPENROUTER_API_KEY" in result.output
 
 
-# --- agent: headless mode ----------------------------------------------------
-
-
 def install_fakes(monkeypatch: pytest.MonkeyPatch, llm: FakeLLM, sandbox: FakeSandbox) -> None:
     monkeypatch.setattr(cli, "make_client", lambda config: _Closable(llm, config))
 
@@ -123,7 +120,7 @@ def test_headless_json_reports_trajectory_and_stats(
     data = json.loads(result.stdout)
     assert data["stop_reason"] == "completed"
     assert data["final_answer"] == "Fixed."
-    assert data["mode"] == "auto"  # headless default: no human to ask
+    assert data["mode"] == "auto"
     assert data["model"]["revision"].startswith("sha256:")
     assert data["prompt_version"] == "system.v1"
     assert data["stats"]["tool_calls"] == 2

@@ -25,7 +25,6 @@ def test_run_args_lock_the_container_down(tmp_path: Path) -> None:
     assert f"{tmp_path.resolve()}:/workspace:rw" in joined
     assert "--pids-limit" in args
     assert "--memory" in args
-    # Only the workspace is mounted: no docker socket, no home directory.
     assert sum(1 for a in args if a == "--volume") == 1
 
 

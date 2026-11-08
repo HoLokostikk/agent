@@ -52,7 +52,7 @@ async def test_429_is_retried_then_succeeds() -> None:
     assert result.content == "hello"
     assert result.metrics.attempts == 2
     assert len(recorder.requests) == 2
-    assert sleep.calls == [0.25]  # server's Retry-After wins over backoff
+    assert sleep.calls == [0.25]
 
 
 async def test_400_is_not_retried() -> None:
@@ -109,7 +109,6 @@ async def test_server_errors_back_off_with_bounded_jitter() -> None:
     result = await client.complete(USER)
 
     assert result.metrics.attempts == 3
-    # Full jitter: attempt n waits in [0, min(max, base * 2**(n-1))].
     assert 0 <= sleep.calls[0] <= 0.1
     assert 0 <= sleep.calls[1] <= 0.2
 
@@ -134,7 +133,7 @@ async def test_gives_up_when_retry_after_exceeds_deadline() -> None:
         await client.complete(USER)
 
     assert info.value.kind is ErrorKind.RATE_LIMIT
-    assert sleep.calls == []  # waiting would blow the total deadline
+    assert sleep.calls == []
     assert len(recorder.requests) == 1
 
 
@@ -249,7 +248,6 @@ async def test_cost_uses_cached_rate() -> None:
 
     result = await client.complete(USER)
 
-    # 600k uncached * $1 + 400k cached * $0.1 + 500k out * $4, per 1M
     assert result.metrics.cost_usd == pytest.approx(0.6 + 0.04 + 2.0)
 
 
@@ -290,7 +288,7 @@ async def test_request_carries_pinned_model_and_sampling() -> None:
 
 
 async def test_ttft_and_latency_are_measured() -> None:
-    ticks = iter([0.0, 0.0, 0.5, 2.0])  # start, attempt start, first token, finish
+    ticks = iter([0.0, 0.0, 0.5, 2.0])
     recorder = Recorder(ok_stream())
     client = LLMClient(model_config(), http_client=recorder.transport(), clock=lambda: next(ticks))
 
