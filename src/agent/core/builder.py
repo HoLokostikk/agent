@@ -38,7 +38,12 @@ class AgentSpec:
     searcher: Searcher | None = None  # adds search_code when set
 
 
-def build_tools(model: ChatModel, spec: AgentSpec, compact_model: ChatModel | None) -> ToolRegistry:
+def build_tools(
+    model: ChatModel,
+    spec: AgentSpec,
+    compact_model: ChatModel | None,
+    extra_tools: list[Tool] | None = None,
+) -> ToolRegistry:
     tools: list[Tool] = default_tools().tools()
     extended = spec.extended_tools
     if extended is None:
@@ -48,6 +53,7 @@ def build_tools(model: ChatModel, spec: AgentSpec, compact_model: ChatModel | No
         tools.append(Explore(compact_model or model, spec.rules))
     if spec.searcher is not None:
         tools.append(SearchCode(spec.searcher))
+    tools.extend(extra_tools or [])
     return ToolRegistry(tools)
 
 
@@ -61,10 +67,11 @@ def build_agent(
     approver: Approver | None = None,
     events: AgentEvents | None = None,
     trace_attributes: dict[str, Any] | None = None,
+    extra_tools: list[Tool] | None = None,
 ) -> Agent:
     return Agent(
         model,
-        build_tools(model, spec, compact_model),
+        build_tools(model, spec, compact_model, extra_tools),
         ToolContext(PathGuard(workspace), sandbox),
         PermissionPolicy(spec.mode, spec.rules),
         system_prompt=build_system_prompt(spec.base_prompt, workspace),

@@ -251,6 +251,7 @@ async def _agent_session(
     sessions: SessionStore | None = None,
     rag: bool = False,
     embed_config: ModelConfig | None = None,
+    mcp_config: Path | None = None,
 ) -> int:
     prompt_version, system_prompt = load_prompt(prompt_path)
     searcher = await _build_searcher(root, embed_config) if rag else None
@@ -276,8 +277,13 @@ async def _agent_session(
             # Headless text mode: tool activity on stderr, answer on stdout.
             events = _HeadlessTextEvents(err, show_reasoning)
     approver = ConsoleApprover(out) if interactive and mode is Mode.ASK else None
+    from agent.mcp.client import MCPConfig, MCPHub, load_mcp_config
+
+    hub = MCPHub(load_mcp_config(mcp_config) if mcp_config else MCPConfig())
     try:
-        async with make_sandbox(root, sandbox_kind) as sandbox:
+        async with make_sandbox(root, sandbox_kind) as sandbox, hub:
+            for notice in hub.notices:
+                err.print(f"[yellow]{notice}[/yellow]")
             agent = build_agent(
                 client,
                 root,
@@ -287,6 +293,7 @@ async def _agent_session(
                 approver=approver,
                 events=events,
                 trace_attributes={"agent.session": "repl" if interactive else "headless"},
+                extra_tools=list(hub.tools),
             )
             session_id = store.new_id()
             if resume is not None:
@@ -398,6 +405,8 @@ def main_callback(
         str | None, typer.Option(help="Continue a saved session: its id, or 'last'.")
     ] = None,
     rag: Annotated[bool, typer.Option(help="Index the workspace and add search_code.")] = False,
+    mcp: Annotated[bool, typer.Option(help="Connect the MCP servers in --mcp-config.")] = False,
+    mcp_config: Annotated[Path, typer.Option(help="MCP servers file.")] = Path("configs/mcp.json"),
     embed_model: Annotated[
         str | None, typer.Option(help="Embedding model alias for --rag (default: BM25 only).")
     ] = None,
@@ -446,6 +455,7 @@ def main_callback(
                 resume=resume,
                 rag=rag,
                 embed_config=embed_config,
+                mcp_config=mcp_config if mcp else None,
             )
         )
     except (ConfigError, PolicyError, FileNotFoundError) as exc:
@@ -601,6 +611,47 @@ def index_cmd(
         if query:
             for hit in await searcher.search(query, 5):
                 out.print(hit.chunk.header(), markup=False)
+
+    asyncio.run(go())
+
+
+mcp_app = typer.Typer(no_args_is_help=True, help="MCP servers: list tools, re-trust.")
+app.add_typer(mcp_app, name="mcp")
+MCPConfigOpt = Annotated[Path, typer.Option("--config")]
+
+
+@mcp_app.command("list")
+def mcp_list(config: MCPConfigOpt = Path("configs/mcp.json")) -> None:
+    """Connect to every configured server and list the tools the agent would get."""
+    from agent.mcp.client import MCPHub, load_mcp_config
+
+    async def go() -> None:
+        async with MCPHub(load_mcp_config(config)) as hub:
+            for notice in hub.notices:
+                err.print(f"[yellow]{notice}[/yellow]")
+            for tool in hub.tools:
+                out.print(f"{tool.name} ({tool.kind}): {tool.description}", markup=False)
+
+    asyncio.run(go())
+
+
+@mcp_app.command("trust")
+def mcp_trust(server: str, config: MCPConfigOpt = Path("configs/mcp.json")) -> None:
+    """Forget the pinned tool descriptions of a server and pin the current ones."""
+    from agent.mcp.client import MCPConfig, MCPHub, PinStore, load_mcp_config
+
+    full = load_mcp_config(config)
+    if server not in full.servers:
+        err.print(f"[red]unknown server {server!r}[/red]")
+        raise typer.Exit(EXIT_USAGE)
+    pins = PinStore()
+    pins.forget(server)
+    pins.save()
+
+    async def go() -> None:
+        only = MCPConfig(servers={server: full.servers[server]})
+        async with MCPHub(only, pins=pins) as hub:
+            out.print(f"trusted {len(hub.tools)} tools of {server}")
 
     asyncio.run(go())
 

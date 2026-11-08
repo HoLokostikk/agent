@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "code-search": {
+      "command": "uv",
+      "args": ["run", "--quiet", "python", "-m", "agent.mcp.server", "--workspace", "."],
+      "kind": "read",
+      "allow": ["search_code", "get_symbol"],
+      "timeout_s": 60
+    }
+  }
+}
