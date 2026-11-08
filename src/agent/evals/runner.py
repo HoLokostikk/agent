@@ -56,6 +56,8 @@ class RunRecord:
     wall_s: float
     error: str | None = None  # infrastructure failure, not an agent failure
     trace_id: str | None = None
+    messages: list[dict[str, Any]] | None = None  # kept for training data only
+    tools: list[dict[str, Any]] | None = None
 
 
 @dataclass(slots=True)
@@ -70,6 +72,7 @@ class SuiteConfig:
     sandbox_factory: SandboxFactory = docker_sandbox
     compaction: bool = True
     compact_model: ChatModel | None = None
+    keep_messages: bool = False
 
 
 async def run_once(task: Task, attempt: int, cfg: SuiteConfig, workdir: Path) -> RunRecord:
@@ -128,6 +131,8 @@ async def run_once(task: Task, attempt: int, cfg: SuiteConfig, workdir: Path) ->
         turns=[asdict(t) for t in result.turns],
         wall_s=time.monotonic() - started,
         trace_id=result.trace_id,
+        messages=[dict(m) for m in agent.messages] if cfg.keep_messages else None,
+        tools=[dict(t) for t in agent.tools.schemas()] if cfg.keep_messages else None,
     )
 
 

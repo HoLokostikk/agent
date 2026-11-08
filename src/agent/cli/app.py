@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import json
 import logging
+from collections import Counter
 from collections.abc import AsyncIterator, Callable
 from dataclasses import asdict
 from enum import StrEnum
@@ -42,6 +43,9 @@ from agent.tools.sanitize import sanitize
 DEFAULT_CONFIG = Path("configs/models.yaml")
 DEFAULT_RULES = Path("configs/permissions.yaml")
 DEFAULT_PROMPT = Path("configs/prompts/system.v1.md")
+DEFAULT_TASKS = Path("evals/tasks")
+DEFAULT_CASES = Path("evals/tool_calls/cases.yaml")
+DEFAULT_RESULTS = Path("evals/results")
 
 EXIT_OK = 0
 EXIT_NOT_COMPLETED = 1
@@ -672,6 +676,156 @@ def mcp_trust(server: str, config: MCPConfigOpt = Path("configs/mcp.json")) -> N
     asyncio.run(go())
 
 
+# --- training data -----------------------------------------------------------------
+
+data_app = typer.Typer(no_args_is_help=True, help="Generate tasks and training data.")
+app.add_typer(data_app, name="data")
+
+
+@data_app.command("mutate")
+def data_mutate(
+    repo: Annotated[Path, typer.Option(help="A Python repo whose tests pass.")],
+    out_dir: Annotated[Path, typer.Option("--out", help="Where task directories are written.")],
+    n: Annotated[int, typer.Option(min=1)] = 50,
+    source_glob: Annotated[str, typer.Option()] = "src/**/*.py",
+    test_command: Annotated[str, typer.Option()] = "python -m pytest -q -x",
+    image: Annotated[
+        str, typer.Option(help="Sandbox image with the repo's deps.")
+    ] = "agent-sandbox:0.1",
+    seed: int = 0,
+) -> None:
+    """Make verified bug-fix tasks by AST mutation (tests pass before, fail after)."""
+    from agent.data.mutate import generate_tasks
+    from agent.sandbox import ExecResult
+
+    async def run_tests(path: Path) -> ExecResult:
+        async with DockerSandbox(path, image=image) as box:
+            return await box.exec(test_command, 600)
+
+    made = asyncio.run(
+        generate_tasks(
+            repo.resolve(),
+            out_dir,
+            run_tests,
+            n=n,
+            source_glob=source_glob,
+            test_command=test_command,
+            seed=seed,
+            prefix=f"mut-{repo.resolve().name}",
+        )
+    )
+    kinds = Counter(m.kind for m in made)
+    out.print(f"{len(made)} tasks in {out_dir}: {dict(kinds)}")
+
+
+@data_app.command("collect")
+def data_collect(
+    tasks_dir: Annotated[Path, typer.Option(help="Training tasks (never the eval set).")],
+    model: ModelOpt,
+    out_dir: Annotated[Path, typer.Option("--out")] = Path("training/data/out"),
+    k: Annotated[int, typer.Option("-k", min=1)] = 2,
+    concurrency: Annotated[int, typer.Option(min=1)] = 4,
+    max_cost: Annotated[float, typer.Option(min=0, help="Per run, USD.")] = 0.5,
+    val_fraction: Annotated[float, typer.Option(min=0, max=0.5)] = 0.1,
+    eval_tasks: Annotated[
+        Path, typer.Option(help="Eval set to decontaminate against.")
+    ] = DEFAULT_TASKS,
+    config: ConfigOpt = DEFAULT_CONFIG,
+    rules: Annotated[Path, typer.Option()] = DEFAULT_RULES,
+    system_prompt: Annotated[Path, typer.Option()] = DEFAULT_PROMPT,
+) -> None:
+    """Run a teacher over training tasks; keep test-verified, deduplicated trajectories."""
+    from agent.data.collect import (
+        Trajectory,
+        dpo_pairs,
+        eval_fingerprints,
+        select,
+        sft_row,
+        split_by_repo,
+        write_jsonl,
+    )
+    from agent.evals.runner import SuiteConfig, run_suite
+    from agent.evals.tasks import load_tasks
+
+    model_config = get_model(config, model)
+    train_tasks = load_tasks(tasks_dir)
+    eval_ids, eval_grams = eval_fingerprints(load_tasks(eval_tasks))
+    overlap = {t.id for t in train_tasks} & eval_ids
+    if overlap:
+        err.print(f"[red]training tasks include eval tasks: {sorted(overlap)}[/red]")
+        raise typer.Exit(EXIT_USAGE)
+    version, prompt_text = load_prompt(system_prompt)
+
+    async def go() -> list[Any]:
+        client = make_client(model_config)
+        await _preflight(client)
+        try:
+            cfg = SuiteConfig(
+                model=client,
+                rules=load_rules(rules),
+                system_prompt=prompt_text,
+                prompt_version=version,
+                k=k,
+                concurrency=concurrency,
+                budget=Budget(max_cost_usd=max_cost),
+                keep_messages=True,
+            )
+            return await run_suite(
+                train_tasks,
+                cfg,
+                progress=lambda r: err.print(
+                    f"[dim]{r.task_id} #{r.attempt}: {'pass' if r.passed else 'fail'}[/dim]"
+                ),
+            )
+        finally:
+            await client.aclose()
+
+    records = asyncio.run(go())
+    trajectories = [
+        Trajectory(
+            r.task_id,
+            r.attempt,
+            r.passed,
+            r.stop_reason or "none",
+            r.messages or [],
+            r.tools or [],
+            r.stats,
+        )
+        for r in records
+        if r.messages
+    ]
+    kept, report = select(trajectories, eval_ids=eval_ids, eval_grams=eval_grams)
+    source_of = {
+        t.id: next((tag.split(":", 1)[1] for tag in t.tags if tag.startswith("source:")), t.id)
+        for t in train_tasks
+    }
+    train, val = split_by_repo(kept, source_of, val_fraction)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    n_train = write_jsonl(out_dir / "sft_train.jsonl", (sft_row(t) for t in train))
+    n_val = write_jsonl(out_dir / "sft_val.jsonl", (sft_row(t) for t in val))
+    n_dpo = write_jsonl(out_dir / "dpo.jsonl", dpo_pairs(trajectories))
+    cost = sum(r.stats.get("cost_usd", 0.0) for r in records)
+    stats = {
+        "teacher": {
+            "alias": model_config.alias,
+            "model": model_config.model,
+            "revision": model_config.revision,
+        },
+        "prompt_version": version,
+        "tasks": len(train_tasks),
+        "runs": len(records),
+        "passed_runs": sum(r.passed for r in records),
+        "kept": report.kept,
+        "dropped": dict(report.dropped),
+        "train": n_train,
+        "val": n_val,
+        "dpo_pairs": n_dpo,
+        "teacher_cost_usd": cost,
+    }
+    (out_dir / "stats.json").write_text(json.dumps(stats, indent=1))
+    out.print_json(json.dumps(stats))
+
+
 # --- traces ----------------------------------------------------------------------
 
 trace_app = typer.Typer(no_args_is_help=True, help="Inspect recorded traces.")
@@ -723,10 +877,6 @@ def trace_stats(file: TraceFileOpt = DEFAULT_TRACE_FILE) -> None:
 
 eval_app = typer.Typer(no_args_is_help=True, help="Run evals and compare results.")
 app.add_typer(eval_app, name="eval")
-
-DEFAULT_TASKS = Path("evals/tasks")
-DEFAULT_CASES = Path("evals/tool_calls/cases.yaml")
-DEFAULT_RESULTS = Path("evals/results")
 
 
 async def _preflight(client: LLMClient) -> None:
