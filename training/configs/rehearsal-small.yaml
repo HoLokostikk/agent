@@ -1,0 +1,15 @@
+# Rehearsal on a small model (free Kaggle/Colab GPU): catches template and
+# masking bugs cheaply before the 27B run. Same pipeline, same data format.
+model: Qwen/Qwen2.5-3B-Instruct
+revision: UNPINNED
+train_file: training/data/out/sft_train.jsonl
+val_file: training/data/out/sft_val.jsonl
+output_dir: training/runs/rehearsal-3b
+max_length: 8192
+lora_r: 16
+lora_alpha: 32
+target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+epochs: 2
+learning_rate: 2.0e-4
+grad_accum: 8
+seed: 0

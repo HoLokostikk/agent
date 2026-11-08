@@ -177,3 +177,12 @@ def test_eval_refuses_to_start_against_a_dead_endpoint(
     assert result.exit_code == 4
     assert "not usable" in result.output
     assert list(tmp_path.iterdir()) == []
+
+
+def test_eval_refuses_an_unpinned_model(tmp_path: Path) -> None:
+    result = runner.invoke(
+        cli.app, ["eval", "toolcalls", "-m", "qwen27b-vllm", "--out", str(tmp_path)]
+    )
+
+    assert result.exit_code == 2
+    assert "no pinned revision" in result.output

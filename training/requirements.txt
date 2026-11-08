@@ -1,0 +1,8 @@
+# GPU machine only. Exact versions are recorded per run in run_manifest.json
+# (pip freeze); pin these once the first run succeeds.
+torch>=2.6
+transformers>=4.50
+peft>=0.15
+bitsandbytes>=0.45
+accelerate>=1.5
+pyyaml>=6

@@ -1,4 +1,4 @@
-.PHONY: fmt lint typecheck test test-live test-docker sandbox eval check
+.PHONY: fmt lint typecheck test test-live test-docker sandbox sandbox-train eval check
 
 fmt:
 	uv run ruff format .
@@ -26,5 +26,8 @@ eval:
 
 sandbox:
 	docker build -t agent-sandbox:0.1 src/agent/sandbox
+
+sandbox-train: sandbox
+	docker build -t agent-sandbox-train:0.1 -f src/agent/sandbox/Dockerfile.train src/agent/sandbox
 
 check: lint typecheck test

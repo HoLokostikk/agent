@@ -1,62 +1,83 @@
 # agent
 
-A terminal coding agent built on an open-weight model (Qwen3.8-27B), with a
-hand-written agent loop, sandboxed tools, evals with CI gates and tracing.
+A terminal coding agent on an open-weight model (Qwen3.8-27B), built to be
+measured: hand-written agent loop, Docker-sandboxed tools, permissions with a
+human in the loop, code RAG, MCP, evals with CI gates, OpenTelemetry tracing,
+a QLoRA distillation pipeline and vLLM serving.
 
-**Status:** phases 0–2 done; phase 3 (evals) and 4 (tracing) implemented, baselines pending. No results yet — every number that appears
-here later will link to the report it came from.
+**Status:** all phases implemented; the numbers that need the 27B model are
+pending a GPU run (`gpu/README.md`). Every number below links to the report it
+came from; a dash means "not measured yet".
 
-## Development
+## Results
+
+| what | value | source |
+|---|---|---|
+| golden set pass@1, 27B base | — | `gpu/laptop_measure.sh baseline` |
+| golden set pass@1, 27B + QLoRA | — | `gpu/laptop_measure.sh sft-eval` |
+| tool-call accuracy, 3B local (30 cases) | see `EXPERIMENTS.md`, phase 3 | `evals/results/` |
+| retrieval recall@10, BM25 vs hybrid | — | `agent eval retrieval` |
+| TTFT with / without prefix caching | — | `gpu/laptop_measure.sh bench` |
+| sandbox security properties | 7 checks, in CI | `tests/sandbox/test_docker.py` |
+
+## Architecture
+
+    you -> CLI (REPL | headless -p) -> agent loop (src/agent/core)
+                                         |-- tools: read/list/glob/grep/edit/write/bash, search_code, todo, explore
+                                         |     '-- bash -> Docker sandbox (no network, no caps, read-only root)
+                                         |-- permissions: read-only | ask | auto, deny rules, approval with diff
+                                         |-- context: AGENTS.md, compaction, sessions (--resume)
+                                         |-- MCP client -> MCP servers (incl. our code-search server)
+                                         '-- OpenTelemetry spans (redacted) -> JSONL / OTLP
+                                       -> OpenAI-compatible endpoint: Ollama | vLLM | LiteLLM gateway | hosted API
+
+## Quickstart
 
 Requires Python 3.12, [uv](https://docs.astral.sh/uv/) and Docker.
 
     uv sync
-    make sandbox      # build the sandbox image (once)
-    make check        # lint + mypy --strict + tests
-    make test-docker  # sandbox security tests against real containers
-    make test-live    # tests against a running local Ollama
+    make sandbox
+    agent models                               # model registry
+    agent                                      # REPL in the current repo (ask mode)
+    agent -p "fix the failing test" --output json
+    agent --rag --embed-model local-embed      # with semantic code search
+    agent --mcp                                # with the MCP servers in configs/mcp.json
 
-## Usage
-
-    agent                                          # REPL in the current repo
-    agent -p "fix the failing test" --output json  # one task, headless
-    agent chat -m local-small "hello"              # plain chat, no tools
-    agent models                                   # model registry
-
-The agent reads and edits files inside the workspace only, and runs every
-command in a Docker container with no network, no capabilities, a read-only
-root filesystem and the workspace as its only mount. In the REPL the default
-permission mode is `ask` (writes and commands need confirmation, with a diff);
-headless runs default to `auto` because there is no one to ask. Rules for
-denied commands and protected paths are in `configs/permissions.yaml`.
-
-Every model call reports tokens, cost, latency and TTFT; every run reports its
-stop reason, turns, tool calls and invalid tool calls. Hosted models read their
-API key from `.env` (see `.env.example`).
-
-## Tracing
-
-Spans go to `~/.local/state/agent/traces.jsonl` by default (`--trace none |
-file | console | otlp`; otlp follows `OTEL_EXPORTER_OTLP_ENDPOINT`, e.g. a local
-Phoenix). Spans carry metrics and decisions, never message content, and every
-attribute is redacted for keys, tokens and emails.
-
-    agent trace list          # recent runs with trace ids
-    agent trace show <id>     # run → turns → model and tool calls
-    agent trace stats         # p50/p95 latency and TTFT, tool failure rates
+Hosted models read their API key from `.env` (see `.env.example`).
 
 ## Evals
 
-    agent eval toolcalls -m local-small        # 30 single-step tool-call cases
-    agent eval tasks -m local-small -k 3       # golden set, 3 runs per task
-    agent eval compare BASE.json CAND.json     # regression gate
+    agent eval toolcalls -m <alias>            # 30 single-step tool-call cases
+    agent eval tasks -m <alias> -k 3           # golden set, pass@1 / pass^3 with bootstrap CIs
+    agent eval retrieval --repo <git repo>     # BM25 / vector / hybrid on git history
+    agent eval compare BASE.json CAND.json     # regression gate (paired bootstrap)
 
-Golden tasks live in `evals/tasks/<id>/` (`repo/` the agent sees, `hidden/`
-extra tests, `solution/` the reference fix). Every task is checked to fail as
-shipped and pass with its solution. Before grading, the tests are restored from
-the snapshot, so editing them never counts as a fix. Reports give pass@1 and
-pass^k with 95% bootstrap intervals over tasks; results land in
-`evals/results/` as JSON plus a markdown report.
+Golden tasks (`evals/tasks/`) are checked to fail as shipped and pass with
+their reference solution; tests are restored before grading, so editing them
+never counts as a fix. Evals refuse to start on a dead endpoint or an unpinned
+model revision.
+
+## Training and serving
+
+    agent data mutate --repo <python repo> --out training/tasks   # verified bug-fix tasks
+    agent data collect --tasks-dir training/tasks -m <teacher>    # rejection-sampled SFT data
+    python training/sft.py --config training/configs/qwen27b-qlora.yaml
+    agent bench -m <alias> --concurrency 1,8,32                   # TTFT, ITL, throughput
+
+The full GPU procedure, costs and reproducibility checklist: `gpu/README.md`.
+Release and rollback: `docs/RUNBOOK.md`. Threat model: `docs/SECURITY.md`.
+
+## Development
+
+    make check        # ruff + mypy --strict + tests
+    make test-docker  # sandbox and golden-set oracle tests against real containers
+    make test-live    # against a local Ollama
+
+## Docs
+
+`docs/design.md` (goals, metrics) · `docs/status.md` (state, open items) ·
+`EXPERIMENTS.md` (journal) · `docs/failure_taxonomy.md` · `docs/adr/` ·
+`docs/MODEL_CARD.md` · `docs/DATASET_CARD.md`
 
 ## License
 

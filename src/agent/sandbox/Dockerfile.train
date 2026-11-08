@@ -1,0 +1,7 @@
+# Sandbox for training tasks mutated from open-source repos: their test deps
+# are baked in, because the sandbox has no network at run time.
+FROM agent-sandbox:0.1
+USER root
+RUN pip install --no-cache-dir click itsdangerous attrs markupsafe \
+    hypothesis pytest-xdist cloudpickle pympler
+WORKDIR /workspace

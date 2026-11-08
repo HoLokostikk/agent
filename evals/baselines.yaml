@@ -6,9 +6,12 @@
 # the baseline (see EXPERIMENTS.md, phase 3). With 12 tasks one task is 8.3
 # percentage points, so anything tighter than that is noise by construction.
 max_drop:
-  toolcalls: 0.10
-  tasks: 0.17
+  # local-small, 3 repeats on 2026-11-07: 73.3%, 73.3%, 76.7% (range 3.3 pp).
+  # ~2x the range, so one unlucky repeat does not fail the gate.
+  toolcalls: 0.07
+  tasks: 0.17   # placeholder until the golden-set baseline is repeated
 
-local-small: {}        # filled in after the first baseline run
+local-small:
+  toolcalls: evals/results/2026-11-07T2216_toolcalls_local-small_system.v1.json
 
 qwen27b-hosted: {}     # needs OPENROUTER_API_KEY; the CI gate skips until set

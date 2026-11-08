@@ -48,3 +48,24 @@ models:
     revision: sha256:0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f
     context_window: 2048
     pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
+
+  # Self-hosted on a rented GPU (gpu/pod_serve.sh), reached through an SSH
+  # tunnel. gpu/laptop_measure.sh replaces the placeholder with the commit sha
+  # pinned on the pod and refuses to run if they differ.
+  qwen27b-vllm:
+    base_url: http://127.0.0.1:8000/v1
+    model: qwen27b
+    revision: UNPINNED-qwen27b-vllm
+    context_window: 32768
+    pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}   # cost = GPU hours, see gpu/README.md
+    sampling: {temperature: 1.0, top_p: 0.95, top_k: 20}
+    timeouts: {connect_s: 10.0, read_s: 300.0, total_s: 900.0}
+
+  qwen27b-ft-v1:
+    base_url: http://127.0.0.1:8000/v1
+    model: ft-v1
+    revision: UNPINNED-qwen27b-vllm+ft-v1
+    context_window: 32768
+    pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
+    sampling: {temperature: 1.0, top_p: 0.95, top_k: 20}
+    timeouts: {connect_s: 10.0, read_s: 300.0, total_s: 900.0}

@@ -1,0 +1,18 @@
+# Main run: Qwen3.8-27B, QLoRA (NF4 + double quant), one 80 GB GPU.
+# VRAM is driven by max_length (trajectory length), not by the dataset size.
+model: Qwen/Qwen3.8-27B
+revision: UNPINNED            # gpu/pod_setup.sh writes the exact commit sha here
+train_file: training/data/out/sft_train.jsonl
+val_file: training/data/out/sft_val.jsonl
+output_dir: training/runs/qwen27b-r16
+max_length: 16384
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+epochs: 2
+learning_rate: 1.0e-4
+batch_size: 1
+grad_accum: 16
+seed: 0
+report_to: none               # "wandb" once WANDB_API_KEY is set

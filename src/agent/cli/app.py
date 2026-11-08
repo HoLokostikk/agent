@@ -676,6 +676,58 @@ def mcp_trust(server: str, config: MCPConfigOpt = Path("configs/mcp.json")) -> N
     asyncio.run(go())
 
 
+@app.command("bench")
+def bench_cmd(
+    model: ModelOpt = "local-small",
+    concurrency: Annotated[str, typer.Option(help="Comma-separated levels.")] = "1,8,32",
+    requests: Annotated[
+        int, typer.Option(min=1, help="Requests per level (at least the level).")
+    ] = 32,
+    max_tokens: Annotated[int, typer.Option(min=1)] = 256,
+    shared_prefix_chars: Annotated[
+        int, typer.Option(min=0, help="Common prefix to test prefix caching.")
+    ] = 0,
+    label: Annotated[str, typer.Option(help="e.g. 'prefix-cache on'.")] = "",
+    out_dir: Annotated[Path, typer.Option("--out")] = Path("serving/results"),
+    config: ConfigOpt = DEFAULT_CONFIG,
+) -> None:
+    """Load test an endpoint: TTFT, ITL, throughput at each concurrency level."""
+    import datetime as dt
+
+    from agent.serving.bench import as_dicts, render, run_bench
+
+    model_config = get_model(config, model)
+    levels = [int(x) for x in concurrency.split(",") if x.strip()]
+    prefix = ("You are a careful senior engineer. " * 200)[:shared_prefix_chars]
+
+    async def go() -> list[Any]:
+        client = make_client(model_config)
+        await _preflight(client)
+        try:
+            return await run_bench(client, levels, requests, max_tokens, prefix)
+        finally:
+            await client.aclose()
+
+    results = asyncio.run(go())
+    meta = {
+        "alias": model_config.alias,
+        "model": model_config.model,
+        "revision": model_config.revision,
+        "max_tokens": max_tokens,
+        "shared_prefix_chars": shared_prefix_chars,
+        "label": label,
+        "created": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
+    }
+    report = render(results, meta)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H%M")
+    slug = label.replace(" ", "-") or "default"
+    path = out_dir / f"{stamp}_bench_{model_config.alias}_{slug}.json"
+    path.write_text(json.dumps({"meta": meta, "levels": as_dicts(results)}, indent=1))
+    path.with_suffix(".md").write_text(report)
+    out.print(report, markup=False)
+
+
 # --- training data -----------------------------------------------------------------
 
 data_app = typer.Typer(no_args_is_help=True, help="Generate tasks and training data.")
@@ -881,7 +933,15 @@ app.add_typer(eval_app, name="eval")
 
 async def _preflight(client: LLMClient) -> None:
     """One tiny call before a long eval, so a dead endpoint fails loudly instead
-    of producing a results file full of zeros."""
+    of producing a results file full of zeros. Also refuses unpinned models:
+    a number measured on a moving revision cannot be reproduced."""
+    if client.config.revision.startswith("UNPINNED"):
+        await client.aclose()
+        err.print(
+            f"[red]{client.config.alias} has no pinned revision ({client.config.revision}); "
+            "run gpu/pod_setup.sh and gpu/laptop_measure.sh, or set it in configs/models.yaml[/red]"
+        )
+        raise typer.Exit(EXIT_USAGE)
     try:
         await client.complete([{"role": "user", "content": "Reply with: ok"}], max_tokens=2)
     except LLMError as exc:
