@@ -41,9 +41,10 @@ the budget below assumes about $2 per hour.
 | 9 | pod | stop vLLM; `bash gpu/pod_train.sh` (prints the loss masking first: read it) | 2–4 h |
 | 10 | pod | `LORA="ft-v1=training/runs/qwen27b-r16/adapter" bash gpu/pod_serve.sh` | — |
 | 11 | laptop | `bash gpu/laptop_measure.sh sft-eval`, then `bash gpu/laptop_measure.sh compare` | ~1 h |
+| 11b | pod | `bash gpu/pod_retrieval.sh` — retrieval ablation (BM25 / vector / hybrid / +rerank) on click, requests, flask; needs fast network, not the laptop | ~30 min |
 | 12 | both | copy `evals/results/`, `serving/results/`, `training/runs/*/run_manifest.json` and `gpu/*.txt` into the repo and commit | — |
 
-Total: roughly 8–11 GPU hours, about $20–30 at $2 per hour. Step 6 needs no
+Total: roughly 8–12 GPU hours, about $20–30 at $2 per hour. Step 6 needs no
 GPU. Ablations (`LORA_R=64`, `FRACTION=0.25`) add 2–3 hours each.
 
 ## Cost per task when self-hosting
