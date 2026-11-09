@@ -1,0 +1,58 @@
+{
+ "meta": {
+  "alias": "local-small",
+  "model": "qwen2.5-3b-instruct-8k",
+  "revision": "sha256:155251c4b20a9a96f844f6ed01e45338b06fe4ad5c456660b58eee40d7dd7cea",
+  "max_tokens": 48,
+  "shared_prefix_chars": 0,
+  "label": "ollama cpu, no shared prefix",
+  "created": "2026-11-09T14:37:48+00:00"
+ },
+ "levels": [
+  {
+   "concurrency": 1,
+   "requests": 4,
+   "errors": 0,
+   "wall_s": 17.581356082999264,
+   "output_tokens": 192,
+   "throughput_tok_s": 10.920659310555642,
+   "ttft_p50_s": 0.5956949715000519,
+   "ttft_p95_s": 0.7980037674500636,
+   "itl_p50_ms": 80.2941459574442,
+   "itl_p95_ms": 80.70361661381692,
+   "latency_p50_s": 4.356798640499619,
+   "latency_p95_s": 4.580197919150305,
+   "cached_input_ratio": 0.5333333333333333
+  },
+  {
+   "concurrency": 2,
+   "requests": 4,
+   "errors": 0,
+   "wall_s": 15.788905127999897,
+   "output_tokens": 192,
+   "throughput_tok_s": 12.160437879857103,
+   "ttft_p50_s": 3.939312912999412,
+   "ttft_p95_s": 4.076711050598988,
+   "itl_p50_ms": 82.10011596807779,
+   "itl_p95_ms": 84.55165588085289,
+   "latency_p50_s": 7.766796685001282,
+   "latency_p95_s": 8.038816900599068,
+   "cached_input_ratio": 0.9777777777777777
+  },
+  {
+   "concurrency": 4,
+   "requests": 4,
+   "errors": 0,
+   "wall_s": 15.862275383000451,
+   "output_tokens": 192,
+   "throughput_tok_s": 12.104190310916287,
+   "ttft_p50_s": 6.088078003999726,
+   "ttft_p95_s": 11.535979535349544,
+   "itl_p50_ms": 82.8509512553439,
+   "itl_p95_ms": 84.95331850317791,
+   "latency_p50_s": 10.02474948749932,
+   "latency_p95_s": 15.289243790299315,
+   "cached_input_ratio": 0.9777777777777777
+  }
+ ]
+}

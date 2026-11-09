@@ -17,12 +17,21 @@ models:
 
   qwen27b-hosted:
     base_url: https://openrouter.ai/api/v1
-    model: qwen/qwen3.8-27b-20260814
+    model: qwen/qwen3.8-27b
     revision: qwen/qwen3.8-27b-20260814
     context_window: 262144
     api_key_env: OPENROUTER_API_KEY
-    pricing: {input_per_mtok: 0.58, output_per_mtok: 3.45}
+    pricing: {input_per_mtok: 0.15, output_per_mtok: 1.875, cached_input_per_mtok: 0.0375}
     sampling: {temperature: 1.0, top_p: 0.95, top_k: 20}
+    timeouts: {connect_s: 10.0, read_s: 120.0, total_s: 600.0}
+
+  gemma4-31b-free:
+    base_url: https://openrouter.ai/api/v1
+    model: google/gemma-4-31b-it:free
+    revision: google/gemma-4-31b-it-20260402
+    context_window: 262144
+    api_key_env: OPENROUTER_API_KEY
+    pricing: {input_per_mtok: 0.0, output_per_mtok: 0.0}
     timeouts: {connect_s: 10.0, read_s: 120.0, total_s: 600.0}
 
   local-embed:
